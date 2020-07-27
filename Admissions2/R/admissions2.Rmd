@@ -1,0 +1,22 @@
+---
+title: "Kaggle Admissions2 Data Test"
+author: "Joshua Megnauth"
+output:
+  html_document:
+    theme: darkly
+    highlight: zenburn
+    df_print: paged
+---
+```{r load_libraries_data, warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+
+admissions_name <- "Admission_Predict_Ver1.1.csv"
+admissions_cols <- c("id", "gre", "toefl", "uni_ratings", "statement",
+                     "letter", "cgpa", "research", "prob_admit")
+
+admissions <- 
+  read_csv(admissions_name, col_names = admissions_cols)
+
+rm(admissions_name, admissions_cols)
+```
