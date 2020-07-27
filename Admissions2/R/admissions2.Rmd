@@ -10,13 +10,28 @@ output:
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
 library(tidyverse)
+library(ggplot2)
 
 admissions_name <- "Admission_Predict_Ver1.1.csv"
 admissions_cols <- c("id", "gre", "toefl", "uni_ratings", "statement",
                      "letter", "cgpa", "research", "prob_admit")
 
 admissions <- 
-  read_csv(admissions_name, col_names = admissions_cols)
+  read_csv(admissions_name, col_names = admissions_cols) %>%
+  mutate(uni_ratings = as_factor(uni_ratings),
+         statement = as_factor(statement),
+         letter = as_factor(letter),
+         research = as.logical(research))
 
 rm(admissions_name, admissions_cols)
+```
+[Blah blah]
+
+[Data](https://www.kaggle.com/mohansacharya/graduate-admissions)
+
+```{r tests_density_plots}
+admissions %>%
+  ggplot() +
+  geom_histogram(aes(gre), stat = "count", color = "blue", binwidth = 50) +
+  geom_histogram(aes(toefl), stat = "count", color = "red", binwidth = 50)
 ```
