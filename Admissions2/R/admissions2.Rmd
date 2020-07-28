@@ -7,31 +7,79 @@ output:
     highlight: zenburn
     df_print: paged
 ---
+
+## Introduction
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
 library(tidyverse)
 library(ggplot2)
+library(broom)
+
+# Dracula colors
+# https://draculatheme.com/
+# Obviously not following the theme yet.
+PINK <- "#ff79c6"
+CYAN <- "#8be9fd"
+GREEN <- "#50fa7b"
+PURPLE <- "#bd93f9"
+RED <- "#ff5555"
+BACKGROUND <- "#282a36"
 
 admissions_name <- "Admission_Predict_Ver1.1.csv"
 admissions_cols <- c("id", "gre", "toefl", "uni_ratings", "statement",
                      "letter", "cgpa", "research", "prob_admit")
+admissions_types <- "iiifffdld"
 
 admissions <- 
-  read_csv(admissions_name, col_names = admissions_cols) %>%
-  mutate(uni_ratings = as_factor(uni_ratings),
-         statement = as_factor(statement),
-         letter = as_factor(letter),
-         research = as.logical(research))
+  read_csv(admissions_name, col_names = admissions_cols,
+           col_types = admissions_types, skip = 1)
 
-rm(admissions_name, admissions_cols)
+rm(admissions_name, admissions_cols, admissions_types)
 ```
 [Blah blah]
 
 [Data](https://www.kaggle.com/mohansacharya/graduate-admissions)
 
-```{r tests_density_plots}
+## Exploring the data
+```{r tests_plots}
 admissions %>%
   ggplot() +
-  geom_histogram(aes(gre), stat = "count", color = "blue", binwidth = 50) +
-  geom_histogram(aes(toefl), stat = "count", color = "red", binwidth = 50)
+  geom_histogram(aes(gre), stat = "count", position = "identity",
+                 color = BACKGROUND, fill = PURPLE)
+
+admissions %>%
+  ggplot(aes(toefl)) +
+  geom_histogram(stat = "count", position = "identity", color = BACKGROUND,
+                 fill = PINK)
+```
+
+**Note that the _x_ scales are different for the two histograms!**
+
+The two variables seem to have a similar distribution despite the different scales.
+
+[to do]
+1. add titles for girraphs
+2. Check distribution of statements of purpose/letters of recommendation
+
+```{r probability_admission}
+admissions %>%
+  ggplot() +
+  geom_density(aes(prob_admit, fill = research), alpha = 0.5) +
+  scale_fill_manual(values = c(PINK, CYAN))
+```
+
+## A basic model
+
+```{r naive_glm}
+admissions <- admissions %>%
+  mutate(y_admit = prob_admit > .65) %>%
+  select(-prob_admit, -id)
+
+basic_mod <- glm(y_admit ~ gre + uni_ratings + cgpa, "binomial", admissions)
+```
+
+### Diagnostics
+
+```{r vif}
+
 ```
