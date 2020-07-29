@@ -1,5 +1,7 @@
 *.csv
 *.html
+*.png
+*.bmp
 *.utf8.md
 *.knit.md
 __pycache__/

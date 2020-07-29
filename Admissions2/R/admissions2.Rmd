@@ -43,19 +43,19 @@ rm(admissions_name, admissions_cols, admissions_types)
 ## Exploring the data
 ```{r tests_plots}
 admissions %>%
+  mutate(gre_stdize = (gre - mean(gre))/sd(gre),
+         toefl_stdize = (toefl - mean(toefl))/sd(toefl)) %>%
   ggplot() +
-  geom_histogram(aes(gre), stat = "count", position = "identity",
-                 color = BACKGROUND, fill = PURPLE)
-
-admissions %>%
-  ggplot(aes(toefl)) +
-  geom_histogram(stat = "count", position = "identity", color = BACKGROUND,
-                 fill = PINK)
+  geom_histogram(aes(gre_stdize), binwidth = .25,
+                 color = BACKGROUND, fill = GREEN) +
+  geom_histogram(aes(toefl_stdize), binwidth = .25,
+                 color = BACKGROUND, fill = PINK, alpha = 0.5) +
+  xlab("GRE and TOEFL (standardized)") +
+  ylab("Frequency") +
+  ggtitle("Standardized GRE and TOEFL scores")
 ```
 
-**Note that the _x_ scales are different for the two histograms!**
-
-The two variables seem to have a similar distribution despite the different scales.
+[similar distros]
 
 [to do]
 1. add titles for girraphs
@@ -65,7 +65,15 @@ The two variables seem to have a similar distribution despite the different scal
 admissions %>%
   ggplot() +
   geom_density(aes(prob_admit, fill = research), alpha = 0.5) +
-  scale_fill_manual(values = c(PINK, CYAN))
+  scale_fill_manual(values = c(PINK, CYAN)) +
+  xlab("Admission") +
+  ylab("Probability") +
+  ggtitle("Probability of admission")
+```
+
+[notes]: probability with no research looks normal while both are distributed beyond 50%
+
+```{r}
 ```
 
 ## A basic model
