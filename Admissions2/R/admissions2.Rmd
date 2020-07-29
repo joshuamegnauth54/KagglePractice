@@ -28,23 +28,31 @@ BACKGROUND <- "#282a36"
 admissions_name <- "Admission_Predict_Ver1.1.csv"
 admissions_cols <- c("id", "gre", "toefl", "uni_ratings", "statement",
                      "letter", "cgpa", "research", "prob_admit")
-admissions_types <- "iiifffdld"
+admissions_types <- "iiifdddld"
 
 admissions <- 
   read_csv(admissions_name, col_names = admissions_cols,
            col_types = admissions_types, skip = 1)
 
+options(scipen = 100)
 rm(admissions_name, admissions_cols, admissions_types)
 ```
-[Blah blah]
 
-[Data](https://www.kaggle.com/mohansacharya/graduate-admissions)
+The [graduate admissions data](https://www.kaggle.com/mohansacharya/graduate-admissions) data set is not immediately attractive at first glance. The data set is sparse, utilitarian, and tractable. Utility is a function of the data's admittedly humdrum goal of predicting graduate school admissions from dreary tests. However, the data set is also yielding due to the directness of the variables and the lack of cleaning required.
+
+For those reasons I had been drawn to this data as a first, small project to play around with in R and Python.
+
+Let's quickly go over the code above. 
 
 ## Exploring the data
 ```{r tests_plots}
+standardize <- function(variable) {
+  (variable - mean(variable))/sd(variable)
+}
+
 admissions %>%
-  mutate(gre_stdize = (gre - mean(gre))/sd(gre),
-         toefl_stdize = (toefl - mean(toefl))/sd(toefl)) %>%
+  mutate(gre_stdize = standardize(gre),
+         toefl_stdize = standardize(toefl)) %>%
   ggplot() +
   geom_histogram(aes(gre_stdize), binwidth = .25,
                  color = BACKGROUND, fill = GREEN) +
@@ -55,7 +63,7 @@ admissions %>%
   ggtitle("Standardized GRE and TOEFL scores")
 ```
 
-[similar distros]
+$$z = \frac{x - \mu}{\sigma}$$
 
 [to do]
 1. add titles for girraphs
@@ -66,9 +74,10 @@ admissions %>%
   ggplot() +
   geom_density(aes(prob_admit, fill = research), alpha = 0.5) +
   scale_fill_manual(values = c(PINK, CYAN)) +
+  labs(fill = "Research") +
   xlab("Admission") +
   ylab("Probability") +
-  ggtitle("Probability of admission")
+  ggtitle("Probability of admission by research experience")
 ```
 
 [notes]: probability with no research looks normal while both are distributed beyond 50%
@@ -83,9 +92,12 @@ admissions <- admissions %>%
   mutate(y_admit = prob_admit > .65) %>%
   select(-prob_admit, -id)
 
-basic_mod <- glm(y_admit ~ gre + uni_ratings + cgpa, "binomial", admissions)
-```
+basic_mod <- glm(y_admit ~ gre + uni_ratings + cgpa + statement + research,
+                 "binomial", admissions)
 
+tidy(basic_mod, conf.int = TRUE, exponentiate = TRUE)
+```
+[notes]: straightforward model, no scaling, cgpa may be bad to include
 ### Diagnostics
 
 ```{r vif}

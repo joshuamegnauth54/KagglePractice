@@ -53,25 +53,64 @@ def clean_admissions(path: str) -> pd.DataFrame:
 
     return admissions
 
+
+def standardize(variable: pd.Series) -> pd.Series:
+    """Standardize a variable by substracting the mean from each value and
+    dividing by the standard deviation
+    Parameters
+    ----------
+    variable : pd.Series
+        The variable to standardize.
+
+    Raises
+    ------
+    ValueError
+        The Series passed in must have at least one row.
+
+    Returns
+    -------
+    pandas.Series
+        Returns the standardized variable.
+
+    """
+    if not len(variable):
+        raise ValueError("Series needs to be >0")
+
+    return (variable - variable.mean())/variable.std()
+
+
 def eda_tests_plots(admissions, size=18):
     fig, axes=plt.subplots(nrows=2, ncols=2, figsize=FIGSIZE)
 
-    fig.suptitle("GRE & TOEFL density plots", fontsize=size, weight="bold")
+    fig.suptitle("GRE, TOEFL, and GPA", fontsize=size, weight="bold")
 
-    gre_stdize = (admissions.gre - admissions.gre.mean())/admissions.gre.std()
-    toefl_stdize = (admissions.toefl - admissions.toefl.mean())/admissions.toefl.std()
+    # Standardize GRE and TOEFL
+    gre_stdize = standardize(admissions.gre)
+    toefl_stdize = standardize(admissions.toefl)
 
+    # Histograms of standardized GRE and TOEFL
     sns.distplot(gre_stdize, norm_hist=True, color=PINK,
                  hist_kws=HIST_KWARGS, ax=axes[0, 0])
     sns.distplot(toefl_stdize, norm_hist=True, color=GREEN,
-                 axlabel="GRE/TOEFL", hist_kws=HIST_KWARGS, ax=axes[0, 0])
+                 axlabel="GRE [pink]/TOEFL [green]",
+                 hist_kws=HIST_KWARGS, ax=axes[0, 0])
 
-    sns.scatterplot(gre_stdize, toefl_stdize, color=GREEN, ax=axes[0, 1])
+    # Scatter plot of standardized GRE and TOEFL scores
+    sns.scatterplot(gre_stdize, toefl_stdize, color=PINK, ax=axes[0, 1])
+    axes[0, 1].set_xlabel("Standardized GRE")
+    axes[0, 1].set_ylabel("Standardized TOEFL")
 
+    # Scatter plot of GRE versus CGPA
     sns.scatterplot("cgpa", "gre", "uni_ratings", data=admissions,
                     ax=axes[1, 0])
+    axes[1, 0].set_xlabel("GPA")
+    axes[1, 0].set_ylabel("GRE")
+
+    # Scatter plot of TOEFL versus GPA
     sns.scatterplot("cgpa", "toefl", "prob_admit", data=admissions,
                     ax=axes[1, 1])
+    axes[1, 1].set_xlabel("GPA")
+    axes[1, 1].set_ylabel("TOEFL")
 
     return (fig, axes)
 
