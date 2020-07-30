@@ -6,6 +6,8 @@ Data from: https://www.kaggle.com/mohansacharya/graduate-admissions
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 # Dracula colors
 # https://draculatheme.com/
@@ -16,9 +18,10 @@ GREEN = "#50fa7b"
 PURPLE = "#bd93f9"
 RED = "#ff5555"
 BACKGROUND = "#282a36"
+
 HIST_KWARGS = {"edgecolor": BACKGROUND, "linewidth": 2}
 FIGSIZE = (18, 16)
-
+THRESHOLD = 0.65
 
 def set_options():
     sns.set_context("poster")
@@ -47,9 +50,10 @@ def clean_admissions(path: str) -> pd.DataFrame:
                                     "research", "prob_admit"],
                              low_memory=False,
                              dtype={"research": bool,
-                                    "uni_ratings": "category",
-                                    "statement": "category",
-                                    "letter": "category"})
+                                    "uni_ratings": "category"})
+
+    admissions.drop(columns="id", inplace=True)
+    admissions["y_admit"] = admissions.prob_admit > THRESHOLD
 
     return admissions
 
@@ -79,8 +83,8 @@ def standardize(variable: pd.Series) -> pd.Series:
     return (variable - variable.mean())/variable.std()
 
 
-def eda_tests_plots(admissions, size=18):
-    fig, axes=plt.subplots(nrows=2, ncols=2, figsize=FIGSIZE)
+def eda_tests_plots(admissions: pd.DataFrame, size=18):
+    fig, axes = plt.subplots(nrows = 2, ncols = 2, figsize = FIGSIZE)
 
     fig.suptitle("GRE, TOEFL, and GPA", fontsize=size, weight="bold")
 
@@ -114,3 +118,16 @@ def eda_tests_plots(admissions, size=18):
 
     return (fig, axes)
 
+
+def admissions_log_model(admissions: pd.DataFrame):
+    """I intended to just repeat my code from R, but honestly I am supremely
+    bored doing so. I'll just recreate most of it later.
+
+    For example! My first R model didn't shuffle and split the data into
+    training and test sets. Do I really need to repeat all of that?"""
+
+    X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
+                    "research"]]
+    y = admissions.y_admit.values
+    basic_mod = LogisticRegression(n_jobs=-1)
+    basic_mod.fit(X, y)

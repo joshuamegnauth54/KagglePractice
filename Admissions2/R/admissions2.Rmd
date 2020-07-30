@@ -11,6 +11,7 @@ output:
 ## Introduction
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
+library(caret)
 library(tidyverse)
 library(ggplot2)
 library(broom)
@@ -25,6 +26,9 @@ PURPLE <- "#bd93f9"
 RED <- "#ff5555"
 BACKGROUND <- "#282a36"
 
+# Threshold for the outcomes (i.e. above THRESHOLD = a success)
+THRESHOLD <- 0.65
+
 admissions_name <- "Admission_Predict_Ver1.1.csv"
 admissions_cols <- c("id", "gre", "toefl", "uni_ratings", "statement",
                      "letter", "cgpa", "research", "prob_admit")
@@ -32,9 +36,10 @@ admissions_types <- "iiifdddld"
 
 admissions <- 
   read_csv(admissions_name, col_names = admissions_cols,
-           col_types = admissions_types, skip = 1)
+           col_types = admissions_types, skip = 1) %>%
+  select(-id)
 
-options(scipen = 100)
+options(scipen = 16)
 rm(admissions_name, admissions_cols, admissions_types)
 ```
 
@@ -66,8 +71,8 @@ admissions %>%
 $$z = \frac{x - \mu}{\sigma}$$
 
 [to do]
-1. add titles for girraphs
-2. Check distribution of statements of purpose/letters of recommendation
+Explain the standardization formula.
+Change y to a factor since caret doesn't like logicals for some reason.
 
 ```{r probability_admission}
 admissions %>%
@@ -83,23 +88,42 @@ admissions %>%
 [notes]: probability with no research looks normal while both are distributed beyond 50%
 
 ```{r}
+admissions %>%
+  select(gre, toefl, statement, letter) %>%
+  cor() %>%
+  kable(col.names = c("GRE", "TOEFL", "SoP", "LoR")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+admissions %>%
+  select(gre, toefl, statement, letter) %>%
+  cor() %>%
+  data.frame() %>%
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 
 ## A basic model
 
 ```{r naive_glm}
 admissions <- admissions %>%
-  mutate(y_admit = prob_admit > .65) %>%
-  select(-prob_admit, -id)
+  mutate(y_admit = prob_admit > THRESHOLD) %>%
+  select(-prob_admit)
 
-basic_mod <- glm(y_admit ~ gre + uni_ratings + cgpa + statement + research,
-                 "binomial", admissions)
+basic_form <- y_admit ~ gre + uni_ratings + cgpa + statement + letter + research
+basic_mod <- glm(basic_form, "binomial", admissions)
 
 tidy(basic_mod, conf.int = TRUE, exponentiate = TRUE)
 ```
-[notes]: straightforward model, no scaling, cgpa may be bad to include
+
+My first model is conservative and straightforward. I included only one of the tests as the two test scores are correlated. Of course, a person/observation that has a certain score on one test is likely to have a similar grade on the other test. Likewise, G.P.A. shouldn't deviate too wildly from TOEFL or GRE scores, but I included the variable in this preliminary model to be safe.
+
+The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. Only GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
+
 ### Diagnostics
 
-```{r vif}
+Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction.
 
+```{r basic_model_test}
+basic_preds <- predict(basic_mod, type = "response") > THRESHOLD
+confusionMatrix(admissions$y_admit, reference = basic_preds)
 ```
