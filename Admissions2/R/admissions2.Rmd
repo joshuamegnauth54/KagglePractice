@@ -105,8 +105,13 @@ admissions %>%
 ## A basic model
 
 ```{r naive_glm}
+# I had problems with y as a logical or factor.
+thres_to_class <- function(data, threshold = THRESHOLD) {
+  as_factor(if_else(data > threshold, 1, 0))
+}
+
 admissions <- admissions %>%
-  mutate(y_admit = prob_admit > THRESHOLD) %>%
+  mutate(y_admit = thres_to_class(prob_admit)) %>%
   select(-prob_admit)
 
 basic_form <- y_admit ~ gre + uni_ratings + cgpa + statement + letter + research
@@ -124,6 +129,6 @@ The coefficients for the odds fall into the confidence intervals. The confidence
 Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction.
 
 ```{r basic_model_test}
-basic_preds <- predict(basic_mod, type = "response") > THRESHOLD
-confusionMatrix(admissions$y_admit, reference = basic_preds)
+basic_preds <- thres_to_class(predict(basic_mod, type = "response"))
+confusionMatrix(admissions$y_admit, reference = basic_preds, positive = "1")
 ```
