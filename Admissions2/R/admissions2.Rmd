@@ -47,12 +47,32 @@ The [graduate admissions data](https://www.kaggle.com/mohansacharya/graduate-adm
 
 For those reasons I had been drawn to this data as a first, small project to play around with in R and Python.
 
-Let's quickly go over the code above. 
+Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected 0.65 as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes. Finally, .65 is hardly perfect as we'll see below.
+
+Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types.
 
 ## Exploring the data
 ```{r tests_plots}
 standardize <- function(variable) {
   (variable - mean(variable))/sd(variable)
+}
+
+thresh_to_fac <- function(data, threshold = THRESHOLD) {
+  as.factor(data > threshold)
+}
+
+train_test_split <- function(X, y, test_size = .2) {
+  len <- length(X)
+  rows <- sample(len)
+  split <- test_size * len
+  
+  X_test <- X[1:split]
+  y_test <- y[1:split]
+
+  X_train <- X[split + 1:len]
+  y_train <- y[split + 1:len]
+  
+  list(X_train, y_train, X_test, y_test)
 }
 
 admissions %>%
@@ -72,7 +92,6 @@ $$z = \frac{x - \mu}{\sigma}$$
 
 [to do]
 Explain the standardization formula.
-Change y to a factor since caret doesn't like logicals for some reason.
 
 ```{r probability_admission}
 admissions %>%
@@ -105,13 +124,8 @@ admissions %>%
 ## A basic model
 
 ```{r naive_glm}
-# I had problems with y as a logical or factor.
-thres_to_class <- function(data, threshold = THRESHOLD) {
-  as_factor(if_else(data > threshold, 1, 0))
-}
-
 admissions <- admissions %>%
-  mutate(y_admit = thres_to_class(prob_admit)) %>%
+  mutate(y_admit = thresh_to_fac(prob_admit)) %>%
   select(-prob_admit)
 
 basic_form <- y_admit ~ gre + uni_ratings + cgpa + statement + letter + research
@@ -126,9 +140,26 @@ The coefficients for the odds fall into the confidence intervals. The confidence
 
 ### Diagnostics
 
-Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction.
+Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
 
 ```{r basic_model_test}
-basic_preds <- thres_to_class(predict(basic_mod, type = "response"))
-confusionMatrix(admissions$y_admit, reference = basic_preds, positive = "1")
+basic_preds <- thresh_to_fac(predict(basic_mod, type = "response"))
+basic_confusion <- confusionMatrix(admissions$y_admit, reference = basic_preds,
+                                   positive = "TRUE")
+
+basic_confusion$table %>%
+  kable(caption = "Confusion matrix: columns = true") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE)
+
+tidy(basic_confusion) %>%
+  select(term, estimate) %>%
+  kable(col.names = c("Classification Function", "Value")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
+
+My basic model performs _okay_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
+
+The logistic model above achieves an accuracy of 86% with a sensitivity (true positive rate) of 93.6%. Specificied, or correctly sorting false cases, is only 73.4%. The confusion matrix above shows 20 false negatives and 50 false positives. I set a threshold of 0.65 as discussed earlier. However, that high threshold probably borked the sorting ability of the model considering that the data is skewed towards positive cases now.
+
+```{r }

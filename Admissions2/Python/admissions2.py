@@ -6,6 +6,8 @@ Data from: https://www.kaggle.com/mohansacharya/graduate-admissions
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import argparse
+from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, accuracy_score
 
@@ -131,3 +133,17 @@ def admissions_log_model(admissions: pd.DataFrame):
     y = admissions.y_admit.values
     basic_mod = LogisticRegression(n_jobs=-1)
     basic_mod.fit(X, y)
+
+
+def main():
+    set_options()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", help = "Path to the Admissions2 data set.")
+    args = parser.parse_args()
+    path = args.path
+
+    admissions = clean_admissions(path)
+
+if __name__ == "__main__":
+    main()
