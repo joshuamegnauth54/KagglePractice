@@ -92,6 +92,7 @@ $$z = \frac{x - \mu}{\sigma}$$
 
 [to do]
 Explain the standardization formula.
+Refactor confusion matrix code into functions.
 
 ```{r probability_admission}
 admissions %>%
@@ -104,7 +105,9 @@ admissions %>%
   ggtitle("Probability of admission by research experience")
 ```
 
-[notes]: probability with no research looks normal while both are distributed beyond 50%
+The probability of admission seems normally distributed for students without research experience while positively skewed for students with projects. Both modes peak past the midway point of 0.5. My initial guess is that setting a threshold of 0.65 would catch more _true positives_ than using 0.5. I wouldn't happily cartwheel around my room at 50-50 odds for school admissions. Likewise, a strict separation at 50% could risk incorrect predictions especially when reasonable students wouldn't bet on such low odds.
+
+A higher threshold logically risks more false negatives---cases where students would be admitted but the model predicted rejection. However, a greater false negatives rate is less risky than false positives here in my opinion. Applying to schools only to be declined seems more individually taxing than false negatives unless the rate for the latter is unreasonbly high.
 
 ```{r}
 admissions %>%
@@ -125,8 +128,7 @@ admissions %>%
 
 ```{r naive_glm}
 admissions <- admissions %>%
-  mutate(y_admit = thresh_to_fac(prob_admit)) %>%
-  select(-prob_admit)
+  mutate(y_admit = thresh_to_fac(prob_admit))
 
 basic_form <- y_admit ~ gre + uni_ratings + cgpa + statement + letter + research
 basic_mod <- glm(basic_form, "binomial", admissions)
@@ -162,4 +164,31 @@ My basic model performs _okay_ considering I conservatively hand picked variable
 
 The logistic model above achieves an accuracy of 86% with a sensitivity (true positive rate) of 93.6%. Specificied, or correctly sorting false cases, is only 73.4%. The confusion matrix above shows 20 false negatives and 50 false positives. I set a threshold of 0.65 as discussed earlier. However, that high threshold probably borked the sorting ability of the model considering that the data is skewed towards positive cases now.
 
-```{r }
+```{r cases_thresh_sixtyfive}
+table(admissions$y_admit) %>%
+  kable(col.names = c("Class", "Frequency")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+How about we check model performance with the threshold set at 0.5? For fun (and profit)!
+
+```{r log_thresh_fifty}
+# This code is dreadful. Sorry.
+fifty_pred <- admissions %>%
+  mutate(y_true = thresh_to_fac(prob_admit, threshold = .5)) %>%
+  glm(basic_form, "binomial", data = .) %>%
+  predict(type = "response") %>%
+  thresh_to_fac(threshold = .5)
+
+fifty_true <- thresh_to_fac(admissions$prob_admit, .5)
+
+confusionMatrix(fifty_true, reference = fifty_pred, positive = "TRUE") %>%
+  tidy() %>%
+  select(term, estimate) %>%
+  kable(col.names = c("Classification Function", "Value")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+rm(fifty_pred, fifty_true)
+```
+
+Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set of predictions as factors where the positive class is defined as 0.51 and up.
