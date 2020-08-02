@@ -11,6 +11,9 @@ output:
 ## Introduction
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
+library(parallel)
+library(doParallel)
+library(ranger)
 library(caret)
 library(tidyverse)
 library(ggplot2)
@@ -39,7 +42,11 @@ admissions <-
            col_types = admissions_types, skip = 1) %>%
   select(-id)
 
+cluster_mp <- makeCluster(detectCores() - 1)
+registerDoParallel(cluster_mp)
+
 options(scipen = 16)
+set.seed(314)
 rm(admissions_name, admissions_cols, admissions_types)
 ```
 
@@ -50,6 +57,8 @@ For those reasons I had been drawn to this data as a first, small project to pla
 Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected 0.65 as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes. Finally, .65 is hardly perfect as we'll see below.
 
 Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types.
+
+As of 8/2/2020 I have set a seed of **314.** My seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
 
 ## Exploring the data
 ```{r tests_plots}
@@ -192,3 +201,34 @@ rm(fifty_pred, fifty_true)
 ```
 
 Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set of predictions as factors where the positive class is defined as 0.51 and up.
+
+My initial intuition from data exploration has been (somewhat) vindicated! I did not expect the model to perform so poorly with that change. Specificity is extremely low which is rather sensible considering the skewness of the classes. I'll keep 0.65 as a threshold.
+
+```{r drop_prob_admit}
+admissions <-
+  select(-prob_admit)
+```
+
+## Bootstrap aggregated random forests [Baggin' CARTs]
+
+```{r bagging_rf}
+rf_traincontrol <- trainControl(method = "LOOCV",
+                                search = "random",
+                                classProbs = TRUE,
+                                summaryFunction = twoClassSummary,
+                                allowParallel = TRUE)
+
+rf_model_nopreproc <- train(y_admit ~ .,
+                            method = "ranger",
+                            trControl = rf_traincontrol,
+                            metric = "ROC",
+                            data = admissions)
+```
+
+The two highest rated answers on a question about [preprocessing for random forests] on Stack Overflow conflict. Wonderful! Random forests should theoretically be indifferent toward outliers or unimportant variables. One answer describes the algorithm as fairly "off the shelf," meaning that one may deploy a CART without much wrangling. Another answer explains that the theoretical prowess is sometimes wonky; all data should be seasoned a bit before cooking. I'll try the model both ways. Preprocessing shouldn't hurt anything, but less complex models or modeling processes should always be preferred of course.
+
+I'm using _leave one out cross validation_ as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for that reason as well.
+
+```{r stop_cluster}
+stopCluster(cluster_mp)
+```

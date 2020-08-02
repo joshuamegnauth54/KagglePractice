@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
 
 # Dracula colors
@@ -121,7 +122,7 @@ def eda_tests_plots(admissions: pd.DataFrame, size=18):
     return (fig, axes)
 
 
-def admissions_log_model(admissions: pd.DataFrame):
+def admissions_rf_model(admissions: pd.DataFrame):
     """I intended to just repeat my code from R, but honestly I am supremely
     bored doing so. I'll just recreate most of it later.
 
@@ -131,7 +132,7 @@ def admissions_log_model(admissions: pd.DataFrame):
     X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
                     "research"]]
     y = admissions.y_admit.values
-    basic_mod = LogisticRegression(n_jobs=-1)
+    basic_mod = RandomForestClassifier(n_jobs=-1)
     basic_mod.fit(X, y)
 
 
