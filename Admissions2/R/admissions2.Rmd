@@ -58,7 +58,7 @@ Let's quickly go over the code above. **THRESHOLD** is a constant to separate th
 
 Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types.
 
-As of 8/2/2020 I have set a seed of **314.** My seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
+As of 8/2/2020 I have set a seed of **314.** My random seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
 
 ## Exploring the data
 ```{r tests_plots}
@@ -101,7 +101,6 @@ $$z = \frac{x - \mu}{\sigma}$$
 
 [to do]
 Explain the standardization formula.
-Refactor confusion matrix code into functions.
 
 ```{r probability_admission}
 admissions %>%
@@ -121,14 +120,9 @@ A higher threshold logically risks more false negatives---cases where students w
 ```{r}
 admissions %>%
   select(gre, toefl, statement, letter) %>%
+  rename_all(~list(gre = "GRE", toefl = "TOEFL", statement = "SoP",
+                   letter = "LoR")) %>%
   cor() %>%
-  kable(col.names = c("GRE", "TOEFL", "SoP", "LoR")) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
-
-admissions %>%
-  select(gre, toefl, statement, letter) %>%
-  cor() %>%
-  data.frame() %>%
   kable() %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
@@ -154,19 +148,22 @@ The coefficients for the odds fall into the confidence intervals. The confidence
 Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
 
 ```{r basic_model_test}
+confusion_wrapper <- function(y_true, y_pred) {
+  confusion <- confusionMatrix(y_pred, reference = y_true, positive = "TRUE")
+  
+  confusion$table %>%
+    kable(caption = "Confusion matrix: columns = true") %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                  full_width = FALSE)
+  
+  tidy(confusion) %>%
+    select(term, estimate) %>%
+    kable(col.names = c("Classification Function", "Value")) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+}
+
 basic_preds <- thresh_to_fac(predict(basic_mod, type = "response"))
-basic_confusion <- confusionMatrix(admissions$y_admit, reference = basic_preds,
-                                   positive = "TRUE")
-
-basic_confusion$table %>%
-  kable(caption = "Confusion matrix: columns = true") %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
-                full_width = FALSE)
-
-tidy(basic_confusion) %>%
-  select(term, estimate) %>%
-  kable(col.names = c("Classification Function", "Value")) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+confusion_wrapper(admissions$y_admit, basic_preds)
 ```
 
 My basic model performs _okay_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
@@ -190,12 +187,7 @@ fifty_pred <- admissions %>%
   thresh_to_fac(threshold = .5)
 
 fifty_true <- thresh_to_fac(admissions$prob_admit, .5)
-
-confusionMatrix(fifty_true, reference = fifty_pred, positive = "TRUE") %>%
-  tidy() %>%
-  select(term, estimate) %>%
-  kable(col.names = c("Classification Function", "Value")) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+confusion_wrapper(fifty_true, fifty_pred)
 
 rm(fifty_pred, fifty_true)
 ```
@@ -218,9 +210,14 @@ rf_traincontrol <- trainControl(method = "LOOCV",
                                 summaryFunction = twoClassSummary,
                                 allowParallel = TRUE)
 
+mtry_default <- floor(sqrt(ncol(admissions) - 1))
+rf_grid <- expand.grid(mtry = c(1, mtry_default, 3, 6),
+                       min.node.size = c(1, 3, 5, 10))
+
 rf_model_nopreproc <- train(y_admit ~ .,
                             method = "ranger",
                             trControl = rf_traincontrol,
+                            tuneGrid = rf_grid,
                             metric = "ROC",
                             data = admissions)
 ```
@@ -228,6 +225,18 @@ rf_model_nopreproc <- train(y_admit ~ .,
 The two highest rated answers on a question about [preprocessing for random forests] on Stack Overflow conflict. Wonderful! Random forests should theoretically be indifferent toward outliers or unimportant variables. One answer describes the algorithm as fairly "off the shelf," meaning that one may deploy a CART without much wrangling. Another answer explains that the theoretical prowess is sometimes wonky; all data should be seasoned a bit before cooking. I'll try the model both ways. Preprocessing shouldn't hurt anything, but less complex models or modeling processes should always be preferred of course.
 
 I'm using _leave one out cross validation_ as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for that reason as well.
+
+The hyperparameter _mtry_ refers to the number of variables that may be possibly split at each intersection.
+
+```{r bagging_preproc_rf}
+rf_model_preproc <- train(y_admit ~ .,
+                          method = "ranger",
+                          preProcess = c("scale", "pca"),
+                          trControl = rf_traincontrol,
+                          tuneGrid = rf_grid,
+                          metric = "ROC",
+                          data = admissions)
+```
 
 ```{r stop_cluster}
 stopCluster(cluster_mp)
