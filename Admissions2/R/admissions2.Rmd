@@ -68,7 +68,9 @@ standardize <- function(variable) {
 }
 
 thresh_to_fac <- function(data, threshold = THRESHOLD) {
-  as_factor(if_else(data > threshold, "Yes", "No"))
+  # R handles factors stupidly
+  temp <- as_factor(if_else(data > threshold, "Yes", "No"))
+  relevel(temp, "No")
 }
 
 train_test_split <- function(X, y, test_size = .2) {
@@ -121,8 +123,8 @@ A higher threshold logically risks more false negatives---cases where students w
 ```{r}
 admissions %>%
   select(gre, toefl, statement, letter) %>%
-  rename_all(~list(gre = "GRE", toefl = "TOEFL", statement = "SoP",
-                   letter = "LoR")) %>%
+  rename(GRE = gre, TOEFL = toefl, SoP = statement,
+         LoR = letter) %>%
   cor() %>%
   kable() %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
@@ -198,21 +200,23 @@ Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set 
 My initial intuition from data exploration has been (somewhat) vindicated! I did not expect the model to perform so poorly with that change. Specificity is extremely low which is rather sensible considering the skewness of the classes. I'll keep 0.65 as a threshold.
 
 ```{r drop_prob_admit}
-admissions <-
+admissions <- admissions %>%
   select(-prob_admit)
 ```
 
 ## Bootstrap aggregated random forests [Baggin' CARTs]
 
 ```{r bagging_rf}
-rf_traincontrol <- trainControl(method = "LOOCV",
+rf_traincontrol <- trainControl(method = "repeatedcv",
+                                number = 5,
+                                repeats = 5,
                                 search = "random",
                                 classProbs = TRUE,
                                 summaryFunction = twoClassSummary,
                                 allowParallel = TRUE)
 
-mtry_default <- floor(sqrt(ncol(admissions) - 1))
-rf_grid <- expand.grid(mtry = c(1, mtry_default, 3, 6),
+# mtry_default <- floor(sqrt(ncol(admissions) - 1))
+rf_grid <- expand.grid(mtry = 1:7,
                        splitrule = c("gini", "extratrees"),
                        min.node.size = c(1, 3, 5, 10))
 
@@ -228,12 +232,12 @@ The two highest rated answers on a question about [preprocessing for random fore
 
 Scaled variables shouldn't harm nor help information gain at each cut of the tree, but I'll try the model both ways. Less complex models or modeling processes should always be preferred, of course, even if preprocessing doesn't strictly harm anything.
 
-I'm using **leave one out cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well.
+The hyperparameter **mtry** refers to the number of variables that may be possibly selected at each cut of the tree (this explanation may be off). By [default mtry](https://cran.r-project.org/web/packages/ranger/ranger.pdf) is set to the floor of the square root of the number of variables which is ~2 in this case.
 
-The hyperparameter **mtry** refers to the number of variables that may be possibly selected at each cut of the tree (this explanation may be off). By [default mtry](https://cran.r-project.org/web/packages/ranger/ranger.pdf) is set to the floor of the square root of the number of variables.
+I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good practice for a data set of this size.
 
 ```{r bagging_preproc_rf}
-train_index <- createDataPartition(admissions$y_admit, p = 0.9)
+train_index <- createDataPartition(admissions$y_admit, p = 0.9)$Resample1
 
 X_train <- admissions %>%
   slice(train_index) %>%

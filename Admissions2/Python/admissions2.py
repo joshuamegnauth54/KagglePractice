@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, accuracy_score
@@ -25,6 +25,7 @@ BACKGROUND = "#282a36"
 HIST_KWARGS = {"edgecolor": BACKGROUND, "linewidth": 2}
 FIGSIZE = (18, 16)
 THRESHOLD = 0.65
+SEED = 314
 
 def set_options():
     sns.set_context("poster")
@@ -63,7 +64,8 @@ def clean_admissions(path: str) -> pd.DataFrame:
 
 def standardize(variable: pd.Series) -> pd.Series:
     """Standardize a variable by substracting the mean from each value and
-    dividing by the standard deviation
+    dividing by the standard deviation.
+
     Parameters
     ----------
     variable : pd.Series
@@ -122,16 +124,15 @@ def eda_tests_plots(admissions: pd.DataFrame, size=18):
     return (fig, axes)
 
 
-def admissions_rf_model(admissions: pd.DataFrame):
-    """I intended to just repeat my code from R, but honestly I am supremely
-    bored doing so. I'll just recreate most of it later.
-
-    For example! My first R model didn't shuffle and split the data into
-    training and test sets. Do I really need to repeat all of that?"""
-
+def admissions_split(admissions: pd.DataFrame):
     X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
                     "research"]]
     y = admissions.y_admit.values
+
+    return train_test_split(X, y, test_size=0.1, random_state=SEED)
+
+def admissions_rf_model(X_train, y_train):
+    gridcv = Grid
     basic_mod = RandomForestClassifier(n_jobs=-1)
     basic_mod.fit(X, y)
 
@@ -140,11 +141,12 @@ def main():
     set_options()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", help = "Path to the Admissions2 data set.")
+    parser.add_argument("path", help="Path to the Admissions2 data set.")
     args = parser.parse_args()
     path = args.path
 
     admissions = clean_admissions(path)
+
 
 if __name__ == "__main__":
     main()
