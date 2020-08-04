@@ -55,9 +55,9 @@ The [graduate admissions data](https://www.kaggle.com/mohansacharya/graduate-adm
 
 For those reasons I had been drawn to this data as a first, small project to play around with in R and Python.
 
-Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected 0.65 as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes. Finally, .65 is hardly perfect as we'll see below.
+Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected 0.65 as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes depending on the teleology of the problem. Finally, 0.65 is hardly perfect, but I found the value to perform well.
 
-Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as TRUE and FALSE are invalid names in R. Caret throws an exception when invalid names are used.
+Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as TRUE and FALSE are invalid names in R. [Caret](https://topepo.github.io/caret/) throws an exception when invalid names are used. I'm also putting my [i7](https://en.wikipedia.org/wiki/List_of_Intel_Core_i7_microprocessors) to work with multiprocessing.
 
 As of 8/2/2020 I have set a seed of **314.** My random seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
 
@@ -68,7 +68,8 @@ standardize <- function(variable) {
 }
 
 thresh_to_fac <- function(data, threshold = THRESHOLD) {
-  # R handles factors stupidly
+  # Factor levels are created by order, so I need to ensure the order for
+  # the negative class is explicit.
   temp <- as_factor(if_else(data > threshold, "Yes", "No"))
   relevel(temp, "No")
 }
@@ -95,15 +96,16 @@ admissions %>%
                  color = BACKGROUND, fill = GREEN) +
   geom_histogram(aes(toefl_stdize), binwidth = .25,
                  color = BACKGROUND, fill = PINK, alpha = 0.5) +
-  xlab("GRE and TOEFL (standardized)") +
+  xlab("GRE [green] and TOEFL [pink]") +
   ylab("Frequency") +
   ggtitle("Standardized GRE and TOEFL scores")
 ```
 
+I standardized the variables for GRE and TOEFL scores due to the different scales. Working with standardized or normalized variables is often just plain easier. The process of standardizing a variable is simple. We'd like a standard deviation of 1 and a mean of zero, so we can simple substract the mean of the variable from each score and divide by the standard deviation. In other words, we're taking the z score of each value.
+
 $$z = \frac{x - \mu}{\sigma}$$
 
-[to do]
-Explain the standardization formula.
+The distributions for GRE and TOEFL scores seem fairly similar as we can see from the histograms. In some cases, such as the range from a standard deviation of **0 to 1**, the distributions are near identical.
 
 ```{r probability_admission}
 admissions %>%
@@ -144,34 +146,38 @@ tidy(basic_mod, conf.int = TRUE, exponentiate = TRUE)
 
 My first model is conservative and straightforward. I included only one of the tests as the two test scores are correlated. Of course, a person/observation that has a certain score on one test is likely to have a similar grade on the other test. Likewise, G.P.A. shouldn't deviate too wildly from TOEFL or GRE scores, but I included the variable in this preliminary model to be safe.
 
-The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. Only GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
+The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. In other words, the p-value is concerned with only the probability of extreme events in terms of the _data_ along with assuming the null hypothesis of no effect; we're not considering external information, and the model says nothing about truthiness. Only the odds coefficient of GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
 
 ### Diagnostics
 
-Let's test predictive ability. I fit my basic model on all of the data which in turn will be used for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
+Let's test predictive ability. I fit my basic model on all of the rows of data which in turn will be reused for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
 
-```{r basic_model_test}
+```{r basic_model_test, results="asis"}
 confusion_wrapper <- function(y_true, y_pred) {
   confusion <- confusionMatrix(y_pred, reference = y_true, positive = "Yes")
   
-  confusion$table %>%
+  cmatrix <-
+    confusion$table %>%
     kable(caption = "Confusion matrix: columns = true") %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                   full_width = FALSE)
   
-  tidy(confusion) %>%
+  metrics <-
+    tidy(confusion) %>%
     select(term, estimate) %>%
     kable(col.names = c("Classification Function", "Value")) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+  
+  list(cmatrix, metrics)
 }
 
 basic_preds <- thresh_to_fac(predict(basic_mod, type = "response"))
 confusion_wrapper(admissions$y_admit, basic_preds)
 ```
 
-My basic model performs _okay_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
+My basic model performs _pretty good_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
 
-The logistic model above achieves an accuracy of 86% with a sensitivity (true positive rate) of 93.6%. Specificied, or correctly sorting false cases, is only 73.4%. The confusion matrix above shows 20 false negatives and 50 false positives. I set a threshold of 0.65 as discussed earlier. However, that high threshold probably borked the sorting ability of the model considering that the data is skewed towards positive cases now.
+The logistic model above achieves an accuracy of 86% with a sensitivity (true positive rate) of 85.4%. Specificity, or correctly sorting false cases, is similar at 87.4%. The confusion matrix above shows 20 false negatives and 50 false positives. I set a threshold of 0.65 as discussed earlier. However, that high threshold may have borked the sorting ability of the model considering that the data is skewed towards positive cases now.
 
 ```{r cases_thresh_sixtyfive}
 table(admissions$y_admit) %>%
@@ -211,12 +217,13 @@ rf_traincontrol <- trainControl(method = "repeatedcv",
                                 number = 5,
                                 repeats = 5,
                                 search = "random",
+                                savePredictions = TRUE,
                                 classProbs = TRUE,
                                 summaryFunction = twoClassSummary,
                                 allowParallel = TRUE)
 
 # mtry_default <- floor(sqrt(ncol(admissions) - 1))
-rf_grid <- expand.grid(mtry = 1:7,
+rf_grid <- expand.grid(mtry = 1:ncol(admissions),
                        splitrule = c("gini", "extratrees"),
                        min.node.size = c(1, 3, 5, 10))
 
@@ -236,7 +243,18 @@ The hyperparameter **mtry** refers to the number of variables that may be possib
 
 I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good practice for a data set of this size.
 
-```{r bagging_preproc_rf}
+### Diagnostics
+```{r rf_no_preproc_diag}
+rf_model_nopreproc$bestTune
+plot(rf_model_nopreproc)
+
+rf_y_pred_nopre <- predict(rf_model_nopreproc)
+confusion_wrapper(admissions$y_admit, rf_y_pred_nopre)
+```
+
+## Random forests with preprocessing
+
+```{r bagging_preproc_rf, warning=FALSE}
 train_index <- createDataPartition(admissions$y_admit, p = 0.9)$Resample1
 
 X_train <- admissions %>%
@@ -245,7 +263,8 @@ X_train <- admissions %>%
 
 y_train <- admissions %>%
   slice(train_index) %>%
-  select(y_admit)
+  select(y_admit) %>%
+  unlist()
 
 X_test <- admissions %>%
   slice(-train_index) %>%
@@ -253,17 +272,27 @@ X_test <- admissions %>%
 
 y_test <- admissions %>%
   slice(-train_index) %>%
-  select(y_admit)
+  select(y_admit) %>%
+  unlist()
 
-rf_model_preproc <- train(y_admit ~ .,
+rf_model_preproc <- train(x = X_train,
+                          y = y_train,
                           method = "ranger",
                           preProcess = c("scale", "pca"),
                           trControl = rf_traincontrol,
                           tuneGrid = rf_grid,
-                          metric = "ROC",
-                          data = admissions)
+                          metric = "ROC")
 ```
+The model crashes a few times with: `Error: mtry can not be larger than number of variables in data. Ranger will EXIT now`
 
+Principal Component Analysis (PCA) reduces the total number of variables, so _ranger_ logically throws errors for the cases were the _mtry_ hyperparameter exceeds the number of columns.
+
+
+### Diagnostics
+```{r rf_preproc_diagnostics}
+rf_ypred_preproc <- relevel(predict(rf_model_preproc, newdata = X_test), "No")
+confusion_wrapper(y_test, rf_ypred_preproc)
+```
 ```{r stop_cluster}
 stopCluster(cluster_mp)
 ```
