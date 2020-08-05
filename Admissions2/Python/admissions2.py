@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.pipeline import make_pipeline, Pipeline
+# from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.metrics import confusion_matrix, roc_auc_score
 
 # Dracula colors
 # https://draculatheme.com/
@@ -132,9 +132,15 @@ def admissions_split(admissions: pd.DataFrame):
     return train_test_split(X, y, test_size=0.1, random_state=SEED)
 
 def admissions_rf_model(X_train, y_train):
-    gridcv = Grid
-    basic_mod = RandomForestClassifier(n_jobs=-1)
-    basic_mod.fit(X, y)
+    """Basically repeating the R model here."""
+
+    rf_grid = {"max_depth": [2, 3, 4, None],
+               "criterion": ["gini", "entropy"]}
+
+    gridcv = GridSearchCV(RandomForestClassifier(n_estimators=1000,
+                                                 n_jobs=-1),
+                          param_grid=rf_grid,
+                          scoring=roc_auc_score)
 
 
 def main():
@@ -146,6 +152,7 @@ def main():
     path = args.path
 
     admissions = clean_admissions(path)
+    X_train, y_train, X_test, y_test = admissions_split(admissions)
 
 
 if __name__ == "__main__":

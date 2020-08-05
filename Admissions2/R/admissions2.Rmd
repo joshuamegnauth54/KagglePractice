@@ -55,9 +55,9 @@ The [graduate admissions data](https://www.kaggle.com/mohansacharya/graduate-adm
 
 For those reasons I had been drawn to this data as a first, small project to play around with in R and Python.
 
-Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected 0.65 as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes depending on the teleology of the problem. Finally, 0.65 is hardly perfect, but I found the value to perform well.
+Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected **0.65** as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes depending on the teleology of the problem. Finally, 0.65 is hardly perfect, but I found the value to perform well.
 
-Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as TRUE and FALSE are invalid names in R. [Caret](https://topepo.github.io/caret/) throws an exception when invalid names are used. I'm also putting my [i7](https://en.wikipedia.org/wiki/List_of_Intel_Core_i7_microprocessors) to work with multiprocessing.
+Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as "Yes" and "No" as TRUE/FALSE are invalid names in R. [Caret](https://topepo.github.io/caret/) throws an exception when invalid names are used. I'm also putting my [i7](https://en.wikipedia.org/wiki/List_of_Intel_Core_i7_microprocessors) to work with multiprocessing via [doParallel](https://cran.r-project.org/web/packages/doParallel/index.html).
 
 As of 8/2/2020 I have set a seed of **314.** My random seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
 
@@ -107,6 +107,8 @@ $$z = \frac{x - \mu}{\sigma}$$
 
 The distributions for GRE and TOEFL scores seem fairly similar as we can see from the histograms. In some cases, such as the range from a standard deviation of **0 to 1**, the distributions are near identical.
 
+I wrote a function, **thresh_to_fac()**, to encapsulate converting probabilities to a factor using a threshold. The function cleans up my code a bit when I have to convert probabilities.
+
 ```{r probability_admission}
 admissions %>%
   ggplot() +
@@ -131,6 +133,8 @@ admissions %>%
   kable() %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
+
+GRE, TOEFL, Statements of Purpose ratings, and Letters of Recommendation ratings are all at least somewhat correlated. The two tests, GRE and TOEFL, are greatly correlated with $R = 0.83$. Ditching at least one of these variables may improve modeling or, at the very least, prevent wonky coefficients.
 
 ## A basic model
 
@@ -158,7 +162,7 @@ confusion_wrapper <- function(y_true, y_pred) {
   
   cmatrix <-
     confusion$table %>%
-    kable(caption = "Confusion matrix: columns = true") %>%
+    kable(caption = "Rows = Predictions") %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                   full_width = FALSE)
   
@@ -168,7 +172,7 @@ confusion_wrapper <- function(y_true, y_pred) {
     kable(col.names = c("Classification Function", "Value")) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
   
-  list(cmatrix, metrics)
+  list(ConfusionMatrix = cmatrix, Metrics = metrics)
 }
 
 basic_preds <- thresh_to_fac(predict(basic_mod, type = "response"))
@@ -177,7 +181,7 @@ confusion_wrapper(admissions$y_admit, basic_preds)
 
 My basic model performs _pretty good_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
 
-The logistic model above achieves an accuracy of 86% with a sensitivity (true positive rate) of 85.4%. Specificity, or correctly sorting false cases, is similar at 87.4%. The confusion matrix above shows 20 false negatives and 50 false positives. I set a threshold of 0.65 as discussed earlier. However, that high threshold may have borked the sorting ability of the model considering that the data is skewed towards positive cases now.
+The logistic model above achieves an accuracy of **86%** with a sensitivity (true positive rate) of **85.4%**. Specificity, or correctly sorting false cases, is similar at **87.4%**. The confusion matrix above shows **20 false positives** and **50 false negatives**. I set a threshold of 0.65 as discussed earlier. However, that high threshold may have borked the sorting ability of the model considering that the data is skewed towards positive cases as you can see below.
 
 ```{r cases_thresh_sixtyfive}
 table(admissions$y_admit) %>%
@@ -187,10 +191,10 @@ table(admissions$y_admit) %>%
 
 How about we check model performance with the threshold set at 0.5? For fun (and profit)!
 
-```{r log_thresh_fifty}
+```{r log_thresh_fifty, results="asis"}
 # This code is dreadful. Sorry.
 fifty_pred <- admissions %>%
-  mutate(y_true = thresh_to_fac(prob_admit, threshold = .5)) %>%
+  mutate(y_admit = thresh_to_fac(prob_admit, threshold = .5)) %>%
   glm(basic_form, "binomial", data = .) %>%
   predict(type = "response") %>%
   thresh_to_fac(threshold = .5)
@@ -201,9 +205,11 @@ confusion_wrapper(fifty_true, fifty_pred)
 rm(fifty_pred, fifty_true)
 ```
 
-Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set of predictions as factors where the positive class is defined as 0.51 and up.
+Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set of predictions as factors where the positive class is defined as **0.51** and up.
 
-My initial intuition from data exploration has been (somewhat) vindicated! I did not expect the model to perform so poorly with that change. Specificity is extremely low which is rather sensible considering the skewness of the classes. I'll keep 0.65 as a threshold.
+A threshold of 0.5 is ostensibly better as the model above sports an impressive **95%** accuracy with a sensitivity of **98.5%**. Specificity is a major downgrade at **48%.** Take a gander at the confusion matrix. My initial intuition from data exploration has been vindicated! Mostly! A threshold of 0.5 leads to very few total amount of "No" values. The 0.5 threshold model correctly predicts 454 of the positive class, but that metric is meaningless since most values are "Yes." A threshold of 0.5 underperforms because the classes are disingeously split even though the actual model technically performs well. Also, I'll reiterate that this model is fit on all of the data. The model is likely overfit both due to the data used as well as the split used.
+
+I'll keep 0.65 as a threshold as the performance is stable.
 
 ```{r drop_prob_admit}
 admissions <- admissions %>%
@@ -211,6 +217,10 @@ admissions <- admissions %>%
 ```
 
 ## Bootstrap aggregated random forests [Baggin' CARTs]
+
+Random forests is a clever name for a clever algorithm. An individual decision tree continually splits data by attempting to satisify a criterion, such as maximizing information gain. The first split is known as the root node which corresponds to the primary, major schism determined by the algorithm. Each branch continues along the same process until the data is exhaustively categorized or a predefined stopping point is reached.
+
+Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset of the data as well as certain patterns that are not ideal. However, random forests coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
 
 ```{r bagging_rf}
 rf_traincontrol <- trainControl(method = "repeatedcv",
@@ -223,7 +233,7 @@ rf_traincontrol <- trainControl(method = "repeatedcv",
                                 allowParallel = TRUE)
 
 # mtry_default <- floor(sqrt(ncol(admissions) - 1))
-rf_grid <- expand.grid(mtry = 1:ncol(admissions),
+rf_grid <- expand.grid(mtry = 1:ncol(admissions) - 1,
                        splitrule = c("gini", "extratrees"),
                        min.node.size = c(1, 3, 5, 10))
 
@@ -244,7 +254,7 @@ The hyperparameter **mtry** refers to the number of variables that may be possib
 I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good practice for a data set of this size.
 
 ### Diagnostics
-```{r rf_no_preproc_diag}
+```{r rf_no_preproc_diag, results="asis"}
 rf_model_nopreproc$bestTune
 plot(rf_model_nopreproc)
 
@@ -283,16 +293,18 @@ rf_model_preproc <- train(x = X_train,
                           tuneGrid = rf_grid,
                           metric = "ROC")
 ```
-The model crashes a few times with: `Error: mtry can not be larger than number of variables in data. Ranger will EXIT now`
-
-Principal Component Analysis (PCA) reduces the total number of variables, so _ranger_ logically throws errors for the cases were the _mtry_ hyperparameter exceeds the number of columns.
+My second random forests model preprocesses the variables by scaling numeric features and applying principal component analysis.
 
 
 ### Diagnostics
-```{r rf_preproc_diagnostics}
+```{r rf_preproc_diagnostics, results="asis"}
 rf_ypred_preproc <- relevel(predict(rf_model_preproc, newdata = X_test), "No")
 confusion_wrapper(y_test, rf_ypred_preproc)
 ```
 ```{r stop_cluster}
 stopCluster(cluster_mp)
+```
+
+## Conclusion
+```{r rf_preproc_traintest}
 ```
