@@ -134,8 +134,10 @@ def admissions_split(admissions: pd.DataFrame):
 def admissions_rf_model(X_train, y_train):
     """Basically repeating the R model here."""
 
-    rf_grid = {"max_depth": [2, 3, 4, None],
-               "criterion": ["gini", "entropy"]}
+    rf_grid = {"criterion": ["gini", "entropy"],
+               "max_depth": [2, 3, 4, None],
+               "max_features": list(range(1, len(admissions.columns) - 1))
+               }
 
     gridcv = GridSearchCV(RandomForestClassifier(n_estimators=1000,
                                                  n_jobs=-1),

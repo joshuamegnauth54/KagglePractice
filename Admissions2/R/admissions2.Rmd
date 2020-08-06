@@ -1,5 +1,5 @@
 ---
-title: "Kaggle Admissions2 Data Test"
+title: "Practice project: Admissions2 data"
 author: "Joshua Megnauth"
 output:
   html_document:
@@ -9,10 +9,13 @@ output:
 ---
 
 ## Introduction
+**THIS PROJECT IS CURRENTLY INCOMPLETE.**
+
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
 library(parallel)
 library(doParallel)
+library(pROC)
 library(ranger)
 library(caret)
 library(tidyverse)
@@ -152,7 +155,7 @@ My first model is conservative and straightforward. I included only one of the t
 
 The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. In other words, the p-value is concerned with only the probability of extreme events in terms of the _data_ along with assuming the null hypothesis of no effect; we're not considering external information, and the model says nothing about truthiness. Only the odds coefficient of GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
 
-### Diagnostics
+### Diagnostics---logistic regression (unscaled)
 
 Let's test predictive ability. I fit my basic model on all of the rows of data which in turn will be reused for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
 
@@ -220,7 +223,7 @@ admissions <- admissions %>%
 
 Random forests is a clever name for a clever algorithm. An individual decision tree continually splits data by attempting to satisify a criterion, such as maximizing information gain. The first split is known as the root node which corresponds to the primary, major schism determined by the algorithm. Each branch continues along the same process until the data is exhaustively categorized or a predefined stopping point is reached.
 
-Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset of the data as well as certain patterns that are not ideal. However, random forests coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
+Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset of the data as well as certain patterns that are not ideal. However, random forest coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
 
 ```{r bagging_rf}
 rf_traincontrol <- trainControl(method = "repeatedcv",
@@ -251,16 +254,18 @@ Scaled variables shouldn't harm nor help information gain at each cut of the tre
 
 The hyperparameter **mtry** refers to the number of variables that may be possibly selected at each cut of the tree (this explanation may be off). By [default mtry](https://cran.r-project.org/web/packages/ranger/ranger.pdf) is set to the floor of the square root of the number of variables which is ~2 in this case.
 
-I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good practice for a data set of this size.
+I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good idiomatic for a data set of this size.
 
-### Diagnostics
+### Diagnostics---Random forest (unscaled)
 ```{r rf_no_preproc_diag, results="asis"}
 rf_model_nopreproc$bestTune
 plot(rf_model_nopreproc)
 
-rf_y_pred_nopre <- predict(rf_model_nopreproc)
+rf_y_pred_nopre <- relevel(predict(rf_model_nopreproc), "No")
 confusion_wrapper(admissions$y_admit, rf_y_pred_nopre)
 ```
+
+The model with the highest Receiver Operating Characteristic (ROC) ratio was trained with an **mtry** of 7 using the **extremely randomized trees (Extra Trees)** algorithm with a minimum node size of **10**.
 
 ## Random forests with preprocessing
 
@@ -293,18 +298,56 @@ rf_model_preproc <- train(x = X_train,
                           tuneGrid = rf_grid,
                           metric = "ROC")
 ```
-My second random forests model preprocesses the variables by scaling numeric features and applying principal component analysis.
+My second random forests model preprocesses the variables by scaling numeric features and determining principal components via PCA. 
 
 
-### Diagnostics
+### Diagnostics---random forest (scaled)
 ```{r rf_preproc_diagnostics, results="asis"}
 rf_ypred_preproc <- relevel(predict(rf_model_preproc, newdata = X_test), "No")
 confusion_wrapper(y_test, rf_ypred_preproc)
 ```
-```{r stop_cluster}
-stopCluster(cluster_mp)
+
+## Model comparison
+```{r roc_auc, warning=FALSE, message=FALSE}
+levels = c("No", "Yes")
+
+# Logistic
+logi_standard <- glm(basic_form, "binomial", admissions[train_index, ])
+logi_standard_pred <- predict(logi_standard, newdata = X_test,
+                              type = "response")
+
+# Random forest (unscaled)
+rf_standard <- train(x = X_train,
+                     y = y_train,
+                     method = "ranger",
+                     trControl = rf_traincontrol,
+                     tuneGrid = rf_grid,
+                     metric = "ROC")
+rf_standard_pred <- predict(rf_standard, newdata = X_test, type = "prob")$Yes
+
+# Random forest (scaled)
+rf_preproc_pred <- predict(rf_model_preproc, newdata = X_test,
+                           type = "prob")$Yes
+
+# ROC calculation via pROC
+roc_logistic <- roc(response = y_test, predictor = logi_standard_pred,
+                    levels = levels)
+roc_nopreproc_rf <- roc(response = y_test, predictor = rf_standard_pred,
+                        levels = levels)
+roc_preproc_rf <- roc(response = y_test, predictor = rf_preproc_pred,
+                      levels = levels)
+
+# ROC curves
+ggroc(list(Logistic = roc_logistic, RF_Preprocessed = roc_preproc_rf,
+           RF_NoPreprocess = roc_nopreproc_rf)) +
+  xlab("Specificity") +
+  ylab("Sensitivity") +
+  ggtitle("ROC curves") +
+  scale_linetype_discrete(labels = c("Logistic (unscaled)",
+                                     "Random forest (unscaled)",
+                                     "Random forest (scaled)"))
 ```
 
-## Conclusion
-```{r rf_preproc_traintest}
+```{r stop_cluster}
+stopCluster(cluster_mp)
 ```
