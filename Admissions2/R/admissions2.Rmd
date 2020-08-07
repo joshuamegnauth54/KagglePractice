@@ -60,7 +60,9 @@ For those reasons I had been drawn to this data as a first, small project to pla
 
 Let's quickly go over the code above. **THRESHOLD** is a constant to separate the positive predictions from the negative---that is, admissions from non-admissions. I selected **0.65** as a probability after exploring the data below which means that the value is a judgement call rather than a science. As a parameter, a statistician or data scientist may tune the threshold for separating the classes depending on the teleology of the problem. Finally, 0.65 is hardly perfect, but I found the value to perform well.
 
-Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as "Yes" and "No" as TRUE/FALSE are invalid names in R. [Caret](https://topepo.github.io/caret/) throws an exception when invalid names are used. I'm also putting my [i7](https://en.wikipedia.org/wiki/List_of_Intel_Core_i7_microprocessors) to work with multiprocessing via [doParallel](https://cran.r-project.org/web/packages/doParallel/index.html).
+Anyway, the code to load the data isn't all that interesting. I manually skipped the header row, renamed the columns, and set the types. I converted _research_ to a factor with the levels renamed as "Yes" and "No" as TRUE/FALSE are invalid names in R. [Caret](https://topepo.github.io/caret/)---a machine learning library developed by Max Kuhn---throws an exception when invalid names are used.
+
+I'm also putting my [i7](https://en.wikipedia.org/wiki/List_of_Intel_Core_i7_microprocessors) to work with multiprocessing via [doParallel](https://cran.r-project.org/web/packages/doParallel/index.html). Training hundreds of models is an example of a problem that is [embarrassingly parallel](https://en.wikipedia.org/wiki/Embarrassingly_parallel), so I suggest that anyone using cross validation and grid search look into multiprocessing via Python or R.
 
 As of 8/2/2020 I have set a seed of **314.** My random seed will always be 324, 314, 428, or 42. My code is open source with each commit available on GitHub to confirm I am not tampering with random seeds.
 
@@ -110,7 +112,7 @@ $$z = \frac{x - \mu}{\sigma}$$
 
 The distributions for GRE and TOEFL scores seem fairly similar as we can see from the histograms. In some cases, such as the range from a standard deviation of **0 to 1**, the distributions are near identical.
 
-I wrote a function, **thresh_to_fac()**, to encapsulate converting probabilities to a factor using a threshold. The function cleans up my code a bit when I have to convert probabilities.
+I wrote a function, **thresh_to_fac()**, to encapsulate converting probabilities to a factor using a threshold. The function cleans up my code a bit when I have to convert probabilities. My function first converts all cases where a column (the parameter **data**) is greater than the threshold to "Yes" or "No." The "Yes" and "No" values are converted to a factor which in turn is releveled to ensure "No" is the first or zeroth case.
 
 ```{r probability_admission}
 admissions %>%
@@ -139,7 +141,7 @@ admissions %>%
 
 GRE, TOEFL, Statements of Purpose ratings, and Letters of Recommendation ratings are all at least somewhat correlated. The two tests, GRE and TOEFL, are greatly correlated with $R = 0.83$. Ditching at least one of these variables may improve modeling or, at the very least, prevent wonky coefficients.
 
-## A basic model
+## Logistic regression
 
 ```{r naive_glm}
 admissions <- admissions %>%
@@ -155,26 +157,34 @@ My first model is conservative and straightforward. I included only one of the t
 
 The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. In other words, the p-value is concerned with only the probability of extreme events in terms of the _data_ along with assuming the null hypothesis of no effect; we're not considering external information, and the model says nothing about truthiness. Only the odds coefficient of GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
 
+Now let's take a look at the appropriate coefficients! Each additional point gained on the GRE increases an applicant's acceptance odds by about 1.07. Cumulative G.P.A. 
+
+The intercept is so low that it's basically zero. But, technically each applicant starts with an odds of .0000000000000000000000407829 if they managed to have a zero GPA, failed the GRE with a zero, and wrote random letters for their statement of purpose, et cetera...
+
 ### Diagnostics---logistic regression (unscaled)
 
 Let's test predictive ability. I fit my basic model on all of the rows of data which in turn will be reused for prediction. Of course, I realize that precluding a hold out set as well as using training data for prediction are anti-patterns, but the model above is basic and experimentation is fun!
 
 ```{r basic_model_test, results="asis"}
 confusion_wrapper <- function(y_true, y_pred) {
+  # Create a confusion matrix object via caret
   confusion <- confusionMatrix(y_pred, reference = y_true, positive = "Yes")
   
+  # Generate a nice table from the matrix via kableExtra
   cmatrix <-
     confusion$table %>%
     kable(caption = "Rows = Predictions") %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
                   full_width = FALSE)
   
+  # Likewise for the metrics
   metrics <-
     tidy(confusion) %>%
     select(term, estimate) %>%
     kable(col.names = c("Classification Function", "Value")) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
   
+  # Return both tables so they're automatically displayed
   list(ConfusionMatrix = cmatrix, Metrics = metrics)
 }
 
@@ -223,7 +233,7 @@ admissions <- admissions %>%
 
 Random forests is a clever name for a clever algorithm. An individual decision tree continually splits data by attempting to satisify a criterion, such as maximizing information gain. The first split is known as the root node which corresponds to the primary, major schism determined by the algorithm. Each branch continues along the same process until the data is exhaustively categorized or a predefined stopping point is reached.
 
-Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset of the data as well as certain patterns that are not ideal. However, random forest coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
+Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting in comparison to having a range of choices. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset (bootstrap sample) of the data as well as certain patterns that are not ideal. However, random forest coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
 
 ```{r bagging_rf}
 rf_traincontrol <- trainControl(method = "repeatedcv",
@@ -254,7 +264,7 @@ Scaled variables shouldn't harm nor help information gain at each cut of the tre
 
 The hyperparameter **mtry** refers to the number of variables that may be possibly selected at each cut of the tree (this explanation may be off). By [default mtry](https://cran.r-project.org/web/packages/ranger/ranger.pdf) is set to the floor of the square root of the number of variables which is ~2 in this case.
 
-I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times. LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be good idiomatic for a data set of this size.
+Cross validation refers to a class of processes for testing model stability. Cross validation splits the data into _k_ folds and uses _k-1_ folds for training with the extra set used for testing. I'm using **repeated cross validation** as the data are rather limited at `r nrow(admissions)` rows. I'm avoiding splitting the data into training and test sets for the first model due to that reason as well. I originally used **leave one out cross validation** which trains the model _N_ times (k == N). LOOCV is clearly computational expensive but provides very conservative estimates of model performance. However, I've found that LOOCV, CV, and repeated CV all offer same conclusions since the model is fairly stable. In other words, error doesn't vary wildly across folds. While I could stick with k fold cross validation, repeated CV seems to be idiomatic for a data set of this size.
 
 ### Diagnostics---Random forest (unscaled)
 ```{r rf_no_preproc_diag, results="asis"}
@@ -265,7 +275,7 @@ rf_y_pred_nopre <- relevel(predict(rf_model_nopreproc), "No")
 confusion_wrapper(admissions$y_admit, rf_y_pred_nopre)
 ```
 
-The model with the highest Receiver Operating Characteristic (ROC) ratio was trained with an **mtry** of 7 using the **extremely randomized trees (Extra Trees)** algorithm with a minimum node size of **10**.
+The model with the highest Receiver Operating Characteristic (ROC) ratio was trained with an **mtry** of 7 using the **extremely randomized trees (Extra Trees)** algorithm with a minimum node size of **10**. Using Gini impurity seems to work best with an _mtry_ of two with this data. Extra trees works best with an _mtry_ of six and a minimal node size of ten with this data.
 
 ## Random forests with preprocessing
 
@@ -298,16 +308,34 @@ rf_model_preproc <- train(x = X_train,
                           tuneGrid = rf_grid,
                           metric = "ROC")
 ```
-My second random forests model preprocesses the variables by scaling numeric features and determining principal components via PCA. 
-
+My second random forests model preprocesses the variables by scaling numeric features and determining principal components via PCA. I also use training and holdout sets (which I should have just done initially as I gained nothing but created extra work for myself by modelling using all of the data).
 
 ### Diagnostics---random forest (scaled)
 ```{r rf_preproc_diagnostics, results="asis"}
+rf_model_preproc$bestTune
 rf_ypred_preproc <- relevel(predict(rf_model_preproc, newdata = X_test), "No")
 confusion_wrapper(y_test, rf_ypred_preproc)
 ```
+Unsurprisingly, a model that is trained on one segment of the data but tested on unseen data performs a bit worse than that model that is trained and tested on the same data. I mentioned above that I gave myself extra work by not using a training set. I can't really compare these two models as they were trained and tested on different data. However, I _really_ want to compare the performance of the different models. I'll retrain the logistic and unpreprocessed models on the training set then compare all of the models.
 
-## Model comparison
+With that said, the confusion matrix above shows a very low specificity. The low row count of the data set coupled with the fact that the test set lacks observations as well seems to throw off predictions a bit.
+## Feature engineering and a model comparison
+Before I compare the models above properly I'd like to try feature engineering to see if I can improve performance.
+
+```{r feature_engineering}
+admissions_fe <-
+  admissions %>%
+  mutate(tests = gre + toefl,
+         tests = standardize(tests),
+         extra_docs = statement + letter,
+         extra_docs = standardize(extra_docs),
+         cgpa = standardize(cgpa)) %>%
+  select(tests, extra_docs, uni_ratings, research, y_admit)
+```
+
+Right! So I added up the test scores then standardized the new variable. TOEFL and GRE were correlated, but I'm assuming simply combining them is a good way to use both variables. I kneaded statement of purpose and letter of recommendation in the same way. My assumption, which I'll test below, is that I can erode whatever negative effects correlation may have while squeezing out some extra performance. I also assume that logistic regression may be affected more by the feature engineering.
+
+### Model comparison
 ```{r roc_auc, warning=FALSE, message=FALSE}
 levels = c("No", "Yes")
 
@@ -343,7 +371,7 @@ ggroc(list(Logistic = roc_logistic, RF_Preprocessed = roc_preproc_rf,
   xlab("Specificity") +
   ylab("Sensitivity") +
   ggtitle("ROC curves") +
-  scale_linetype_discrete(labels = c("Logistic (unscaled)",
+  scale_color_discrete(labels = c("Logistic (unscaled)",
                                      "Random forest (unscaled)",
                                      "Random forest (scaled)"))
 ```
