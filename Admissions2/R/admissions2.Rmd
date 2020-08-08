@@ -330,7 +330,15 @@ admissions_fe <-
          extra_docs = statement + letter,
          extra_docs = standardize(extra_docs),
          cgpa = standardize(cgpa)) %>%
-  select(tests, extra_docs, uni_ratings, research, y_admit)
+  select(tests, extra_docs, cgpa, uni_ratings, research, y_admit)
+
+# Train-test split
+Xy_train_fe <- admissions_fe %>%
+  slice(train_index)
+
+X_test_fe <- admissions_fe %>%
+  slice(-train_index) %>%
+  select(-y_admit)
 ```
 
 Right! So I added up the test scores then standardized the new variable. TOEFL and GRE were correlated, but I'm assuming simply combining them is a good way to use both variables. I kneaded statement of purpose and letter of recommendation in the same way. My assumption, which I'll test below, is that I can erode whatever negative effects correlation may have while squeezing out some extra performance. I also assume that logistic regression may be affected more by the feature engineering.
@@ -357,6 +365,19 @@ rf_standard_pred <- predict(rf_standard, newdata = X_test, type = "prob")$Yes
 rf_preproc_pred <- predict(rf_model_preproc, newdata = X_test,
                            type = "prob")$Yes
 
+# Logistic (feature engineering)
+logi_fe <- glm(y_admit ~ ., family = "binomial", data = Xy_train_fe)
+logi_fe_pred <- predict(logi_fe, newdata = X_test_fe, type = "response")
+
+# Random forest (feature engineering)
+rf_fe <- train(y_admit ~ .,
+               data = Xy_train_fe,
+               method = "ranger",
+               trControl = rf_traincontrol,
+               tuneGrid = rf_grid,
+               metric = "ROC")
+rf_fe_pred <- predict(rf_fe, newdata = X_test_fe, type = "prob")$Yes
+
 # ROC calculation via pROC
 roc_logistic <- roc(response = y_test, predictor = logi_standard_pred,
                     levels = levels)
@@ -364,17 +385,29 @@ roc_nopreproc_rf <- roc(response = y_test, predictor = rf_standard_pred,
                         levels = levels)
 roc_preproc_rf <- roc(response = y_test, predictor = rf_preproc_pred,
                       levels = levels)
+roc_log_fe <- roc(response = y_test, predictor = logi_fe_pred, levels = levels)
+roc_rf_fe <- roc(response = y_test, predictor = rf_fe_pred, levels = levels)
+
+# List of the above calculations to pass to ggroc
+roc_list <- list(Logistic = roc_logistic, RF_Preprocessed = roc_preproc_rf,
+                 RF_NoPreprocess = roc_nopreproc_rf, LogisticFE = roc_log_fe,
+                 RF_FE = roc_rf_fe)
 
 # ROC curves
-ggroc(list(Logistic = roc_logistic, RF_Preprocessed = roc_preproc_rf,
-           RF_NoPreprocess = roc_nopreproc_rf)) +
+ggroc(roc_list) +
   xlab("Specificity") +
   ylab("Sensitivity") +
   ggtitle("ROC curves") +
   scale_color_discrete(labels = c("Logistic (unscaled)",
-                                     "Random forest (unscaled)",
-                                     "Random forest (scaled)"))
+                                  "Random forest (unscaled)",
+                                  "Random forest (scaled)",
+                                  "Logistic (feature engineering)",
+                                  "Random forest (feature engineering)"))
+
+map(roc_list, auc)
 ```
+
+The code above looks very verbose, but I'm not doing anything really extravagent here. First, I retrain the models using the same subset of data---that is, the same split of rows. Next, I calculate predictions which are output as probabilities. Finally, I calculate the ROC using pROC and plot all of the curves on the same graph.
 
 ```{r stop_cluster}
 stopCluster(cluster_mp)

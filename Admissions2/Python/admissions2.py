@@ -132,17 +132,18 @@ def admissions_split(admissions: pd.DataFrame):
     return train_test_split(X, y, test_size=0.1, random_state=SEED)
 
 def admissions_rf_model(X_train, y_train):
-    """Basically repeating the R model here."""
-
     rf_grid = {"criterion": ["gini", "entropy"],
                "max_depth": [2, 3, 4, None],
-               "max_features": list(range(1, len(admissions.columns) - 1))
+               "max_features": list(range(1, len(admissions.columns) - 1)),
+               "max_samples": np.arange(.4, step = .1)
                }
 
     gridcv = GridSearchCV(RandomForestClassifier(n_estimators=1000,
                                                  n_jobs=-1),
                           param_grid=rf_grid,
                           scoring=roc_auc_score)
+
+
 
 
 def main():
