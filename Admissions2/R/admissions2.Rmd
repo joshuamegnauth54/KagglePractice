@@ -11,6 +11,10 @@ output:
 ## Introduction
 **THIS PROJECT IS CURRENTLY INCOMPLETE.**
 
+The Python port of the code may be found [here](https://github.com/joshuamegnauth54/KagglePractice/blob/master/Admissions2/Python/admissions2.py).
+
+The source code for this Rmd may be found [here](https://github.com/joshuamegnauth54/KagglePractice/blob/master/Admissions2/R/admissions2.Rmd).
+
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
 library(parallel)
@@ -405,19 +409,28 @@ roc_labels <-
   roc_list %>%
   map(auc) %>%
   map_dbl(1) %>%
+  map_dbl(~round(., 4)) %>%
   map2_chr(roc_names, ~paste(.y, "AUC:", .x))
 
 # ROC curves
 ggroc(roc_list) +
+  geom_abline(slope = 1, intercept = 1, color = RED) +
   xlab("Specificity") +
   ylab("Sensitivity") +
   ggtitle("ROC curves") +
-  scale_color_discrete(labels = roc_labels)
+  theme(legend.position = c(0.75, 0.2),
+        legend.direction = "vertical") +
+  scale_color_discrete(name = "Models",
+                       labels = roc_labels)
 ```
 
 The code above looks very verbose, but I'm not doing anything really extravagant here besides [Purrr](https://purrr.tidyverse.org/) (meow). First, I retrain the models using the same subset of data---that is, the same split of rows. Next, I calculate predictions which are output as probabilities. Finally, I calculate the ROC using pROC and plot all of the curves on the same graph.
 
-The Purrr code creates a list of strings that concatenate the names of the models with the AUC value. I map the [auc](https://rdrr.io/cran/pROC/man/auc.html) function onto the list of ROC objects followed by pulling out the second element from the new list of auc objects using **map_dbl** from Purrr. Auc's second element is the actual AUC. Finally, I concatenate each string from the list of names with the pulled AUC values.
+The Purrr code creates a list of strings that concatenate the names of the models with the AUC value. I map the [auc](https://rdrr.io/cran/pROC/man/auc.html) function onto the list of ROC objects followed by pulling out the second element from the new list of auc objects as well as rounding the values using **map_dbl** from Purrr. Auc's second element is the actual AUC. Finally, I concatenate each string from the list of names with the pulled AUC values.
+
+ROC plots the trade off between two metrics---typically sensitivity versus specificity. Better models would output probabilities that sort the classes better. For example, a perfect model would assign very high or near one probabilities for the positive class. We wouldn't have a trade off between the two classes based on our threshold if we had a perfect model! Of course, perfect models don't really exist, so ROC curves also help us determine an appropriate cut off point.
+
+The Area Under the Curve or AUC is basically an integration. Or, actually, I'm pretty sure AUC is, in fact, just integration. Anywho, AUC shows how much area is under the ROC curve(s), as the name states explicitly. Perfect models would have AUCs very close to one. AUCs and ROCs are extremely useful for comparing two classifiers. Each of the models defined above perform similarly; they are basically separated by less than 0.01 in terms of AUC. The ROC curves show similar performance as well, but the models notable have gains in different areas.
 
 ```{r stop_cluster}
 stopCluster(cluster_mp)

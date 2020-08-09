@@ -56,8 +56,8 @@ def clean_admissions(path: str) -> pd.DataFrame:
                              dtype={"research": bool,
                                     "uni_ratings": "category"})
 
-    admissions.drop(columns="id", inplace=True)
     admissions["y_admit"] = admissions.prob_admit > THRESHOLD
+    admissions.drop(columns=["id", "prob_admit", inplace=True)
 
     return admissions
 
@@ -124,6 +124,14 @@ def eda_tests_plots(admissions: pd.DataFrame, size=18):
     return (fig, axes)
 
 
+def admissions_fe(admissions: pd.DataFrame):
+    admissions["tests"] = admissions.gre + admissions.toefl
+    admissions["extra_docs"] = admissions.statement + admissions.letter
+
+    admissions.tests = standardize(admissions.tests)
+    admissions.extra_docs = standardize(admissions.extra_docs)
+    admissions.cgpa = standardize(admissions.cgpa)
+
 def admissions_split(admissions: pd.DataFrame):
     X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
                     "research"]]
@@ -143,7 +151,8 @@ def admissions_rf_model(X_train, y_train):
                           param_grid=rf_grid,
                           scoring=roc_auc_score)
 
-
+    gridcv.fit(X_train, y_train)
+    return gridcv
 
 
 def main():
