@@ -106,7 +106,7 @@ admissions %>%
   ggtitle("Standardized GRE and TOEFL scores")
 ```
 
-I standardized the variables for GRE and TOEFL scores due to the different scales. Working with standardized or normalized variables is often just plain easier. The process of standardizing a variable is simple. We'd like a standard deviation of 1 and a mean of zero, so we can simple substract the mean of the variable from each score and divide by the standard deviation. In other words, we're taking the z score of each value.
+I standardized the variables for GRE and TOEFL scores due to the different scales. Working with standardized or normalized variables is often just plain easier. The process of standardizing a variable is simple. We'd like a standard deviation of 1 and a mean of zero, so we can simple subtract the mean of the variable from each score and divide by the standard deviation. In other words, we're taking the z score of each value.
 
 $$z = \frac{x - \mu}{\sigma}$$
 
@@ -127,7 +127,7 @@ admissions %>%
 
 The probability of admission seems normally distributed for students without research experience while positively skewed for students with projects. Both modes peak past the midway point of 0.5. My initial guess is that setting a threshold of 0.65 would catch more _true positives_ than using 0.5. I wouldn't happily cartwheel around my room at 50-50 odds for school admissions. Likewise, a strict separation at 50% could risk incorrect predictions especially when reasonable students wouldn't bet on such low odds.
 
-A higher threshold logically risks more false negatives---cases where students would be admitted but the model predicted rejection. However, a greater false negatives rate is less risky than false positives here in my opinion. Applying to schools only to be declined seems more individually taxing than false negatives unless the rate for the latter is unreasonbly high.
+A higher threshold logically risks more false negatives---cases where students would be admitted but the model predicted rejection. However, a greater false negatives rate is less risky than false positives here in my opinion. Applying to schools only to be declined seems more individually taxing than false negatives unless the rate for the latter is unreasonably high.
 
 ```{r}
 admissions %>%
@@ -192,7 +192,7 @@ basic_preds <- thresh_to_fac(predict(basic_mod, type = "response"))
 confusion_wrapper(admissions$y_admit, basic_preds)
 ```
 
-My basic model performs _pretty good_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be overfit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
+My basic model performs _pretty good_ considering I conservatively hand picked variables. With that said, I'll repeat that I _tested_ on my _training_ data so the model may be over fit with only decent performance. Total accuracy is the ratio of correctly separated true positive and true negatives over all of the classes total. Accuracy's major problem is that the two classes may be unbalanced. The canonical example considers the test for an affliction where most test results are negative. Let's say that 99% of the cases in a data set for some condition are negative. A classifier may achieve an accuracy score of 99% while predicting **literally every positive case incorrectly.**
 
 The logistic model above achieves an accuracy of **86%** with a sensitivity (true positive rate) of **85.4%**. Specificity, or correctly sorting false cases, is similar at **87.4%**. The confusion matrix above shows **20 false positives** and **50 false negatives**. I set a threshold of 0.65 as discussed earlier. However, that high threshold may have borked the sorting ability of the model considering that the data is skewed towards positive cases as you can see below.
 
@@ -220,7 +220,7 @@ rm(fifty_pred, fifty_true)
 
 Using my handy dandy ~~notebook~~ _thresh_to_fac()_ function, I generated a set of predictions as factors where the positive class is defined as **0.51** and up.
 
-A threshold of 0.5 is ostensibly better as the model above sports an impressive **95%** accuracy with a sensitivity of **98.5%**. Specificity is a major downgrade at **48%.** Take a gander at the confusion matrix. My initial intuition from data exploration has been vindicated! Mostly! A threshold of 0.5 leads to very few total amount of "No" values. The 0.5 threshold model correctly predicts 454 of the positive class, but that metric is meaningless since most values are "Yes." A threshold of 0.5 underperforms because the classes are disingeously split even though the actual model technically performs well. Also, I'll reiterate that this model is fit on all of the data. The model is likely overfit both due to the data used as well as the split used.
+A threshold of 0.5 is ostensibly better as the model above sports an impressive **95%** accuracy with a sensitivity of **98.5%**. Specificity is a major downgrade at **48%.** Take a gander at the confusion matrix. My initial intuition from data exploration has been vindicated! Mostly! A threshold of 0.5 leads to very few total amount of "No" values. The 0.5 threshold model correctly predicts 454 of the positive class, but that metric is meaningless since most values are "Yes." A threshold of 0.5 under performs because the classes are disingenuously split even though the actual model technically performs well. Also, I'll reiterate that this model is fit on all of the data. The model is likely over fit both due to the data used as well as the split used.
 
 I'll keep 0.65 as a threshold as the performance is stable.
 
@@ -231,9 +231,9 @@ admissions <- admissions %>%
 
 ## Bootstrap aggregated random forests [Baggin' CARTs]
 
-Random forests is a clever name for a clever algorithm. An individual decision tree continually splits data by attempting to satisify a criterion, such as maximizing information gain. The first split is known as the root node which corresponds to the primary, major schism determined by the algorithm. Each branch continues along the same process until the data is exhaustively categorized or a predefined stopping point is reached.
+Random forests is a clever name for a clever algorithm. An individual decision tree continually splits data by attempting to satisfy a criterion, such as maximizing information gain. The first split is known as the root node which corresponds to the primary, major schism determined by the algorithm. Each branch continues along the same process until the data is exhaustively categorized or a predefined stopping point is reached.
 
-Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting in comparison to having a range of choices. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset (bootstrap sample) of the data as well as certain patterns that are not ideal. However, random forest coalsces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: overfitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
+Of course, decision trees have more going in than a scant summary can cover, but that's the gist of the process. An individual decision tree lacks robustness because of its singularity. A single decision tree may hone in an optimal split, but a single split may be limiting in comparison to having a range of choices. Random forests grows many trees which are suboptimally learned leading to high bias. These trees understand a subset (bootstrap sample) of the data as well as certain patterns that are not ideal. However, random forest coalesces these patterns via voting which leads to stronger models overall. Using multiple trees solves another potential decision tree problem: over fitting. A decision tree must usually be cut or trimmed so that it doesn't learn a data set's noise. Fitting multiple weak learners helps random forests generalize an understanding of the data rather than learning its nuances.
 
 ```{r bagging_rf}
 rf_traincontrol <- trainControl(method = "repeatedcv",
@@ -388,26 +388,36 @@ roc_preproc_rf <- roc(response = y_test, predictor = rf_preproc_pred,
 roc_log_fe <- roc(response = y_test, predictor = logi_fe_pred, levels = levels)
 roc_rf_fe <- roc(response = y_test, predictor = rf_fe_pred, levels = levels)
 
-# List of the above calculations to pass to ggroc
+# List of the above calculations to Purrr on
 roc_list <- list(Logistic = roc_logistic, RF_Preprocessed = roc_preproc_rf,
                  RF_NoPreprocess = roc_nopreproc_rf, LogisticFE = roc_log_fe,
                  RF_FE = roc_rf_fe)
+
+# List of labels for Purrr.
+roc_names = list("Logistic (unscaled)",
+                 "Random forest (unscaled)",
+                 "Random forest (scaled)",
+                 "Logistic (feature engineering)",
+                 "Random forest (feature engineering)")
+
+# Actual labels to pass to ggroc. See explanation below.
+roc_labels <- 
+  roc_list %>%
+  map(auc) %>%
+  map_dbl(1) %>%
+  map2_chr(roc_names, ~paste(.y, "AUC:", .x))
 
 # ROC curves
 ggroc(roc_list) +
   xlab("Specificity") +
   ylab("Sensitivity") +
   ggtitle("ROC curves") +
-  scale_color_discrete(labels = c("Logistic (unscaled)",
-                                  "Random forest (unscaled)",
-                                  "Random forest (scaled)",
-                                  "Logistic (feature engineering)",
-                                  "Random forest (feature engineering)"))
-
-map(roc_list, auc)
+  scale_color_discrete(labels = roc_labels)
 ```
 
-The code above looks very verbose, but I'm not doing anything really extravagent here. First, I retrain the models using the same subset of data---that is, the same split of rows. Next, I calculate predictions which are output as probabilities. Finally, I calculate the ROC using pROC and plot all of the curves on the same graph.
+The code above looks very verbose, but I'm not doing anything really extravagant here besides [Purrr](https://purrr.tidyverse.org/) (meow). First, I retrain the models using the same subset of data---that is, the same split of rows. Next, I calculate predictions which are output as probabilities. Finally, I calculate the ROC using pROC and plot all of the curves on the same graph.
+
+The Purrr code creates a list of strings that concatenate the names of the models with the AUC value. I map the [auc](https://rdrr.io/cran/pROC/man/auc.html) function onto the list of ROC objects followed by pulling out the second element from the new list of auc objects using **map_dbl** from Purrr. Auc's second element is the actual AUC. Finally, I concatenate each string from the list of names with the pulled AUC values.
 
 ```{r stop_cluster}
 stopCluster(cluster_mp)
