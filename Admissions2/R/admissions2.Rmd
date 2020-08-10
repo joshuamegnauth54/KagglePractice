@@ -9,11 +9,11 @@ output:
 ---
 
 ## Introduction
-**THIS PROJECT IS CURRENTLY INCOMPLETE.**
-
 The Python port of the code may be found [here](https://github.com/joshuamegnauth54/KagglePractice/blob/master/Admissions2/Python/admissions2.py).
 
 The source code for this Rmd may be found [here](https://github.com/joshuamegnauth54/KagglePractice/blob/master/Admissions2/R/admissions2.Rmd).
+
+The data set used may be found [here](https://www.kaggle.com/mohansacharya/graduate-admissions).
 
 ```{r load_libraries_data, warning=FALSE, message=FALSE}
 library(kableExtra)
@@ -108,6 +108,8 @@ admissions %>%
   xlab("GRE [green] and TOEFL [pink]") +
   ylab("Frequency") +
   ggtitle("Standardized GRE and TOEFL scores")
+
+head(admissions)
 ```
 
 I standardized the variables for GRE and TOEFL scores due to the different scales. Working with standardized or normalized variables is often just plain easier. The process of standardizing a variable is simple. We'd like a standard deviation of 1 and a mean of zero, so we can simple subtract the mean of the variable from each score and divide by the standard deviation. In other words, we're taking the z score of each value.
@@ -157,11 +159,11 @@ basic_mod <- glm(basic_form, "binomial", admissions)
 tidy(basic_mod, conf.int = TRUE, exponentiate = TRUE)
 ```
 
-My first model is conservative and straightforward. I included only one of the tests as the two test scores are correlated. Of course, a person/observation that has a certain score on one test is likely to have a similar grade on the other test. Likewise, G.P.A. shouldn't deviate too wildly from TOEFL or GRE scores, but I included the variable in this preliminary model to be safe.
+My first model is conservative and straightforward. I included only one of the tests as the two test scores are correlated as we saw above. Of course, a person/observation that has a certain score on one test is likely to have a similar grade on the other test. Likewise, G.P.A. shouldn't deviate too wildly from TOEFL or GRE scores, but I included the variable in this preliminary model to be safe.
 
-The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit wonky. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. In other words, the p-value is concerned with only the probability of extreme events in terms of the _data_ along with assuming the null hypothesis of no effect; we're not considering external information, and the model says nothing about truthiness. Only the odds coefficient of GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
+The coefficients for the odds fall into the confidence intervals. The confidence intervals are a bit fickle. For example, the confidence intervals for _university ratings_ are rather wide. P-values measure the probability of results at least as extreme as what was observed given that the null hypothesis is true. In other words, the p-value is concerned with only the **probability of extreme events in terms of the data** along with assuming the null hypothesis of no effect; we're not considering external information, as with a [https://en.wikipedia.org/wiki/Prior_probability](prior), and the model says nothing about truthiness. Only the odds coefficient of GRE scores, cumulative G.P.A., and letters of recommendation scores may not be due to random chance given $\alpha = .05$.
 
-Now let's take a look at the appropriate coefficients! Each additional point gained on the GRE increases an applicant's acceptance odds by about 1.07. Cumulative G.P.A. 
+Now let's take a look at the appropriate coefficients! Each additional point gained on the GRE increases an applicant's acceptance odds by about 1.07. Cumulative G.P.A. boosts odds by about 33 for each additional grade point average out of a maximum of ten.
 
 The intercept is so low that it's basically zero. But, technically each applicant starts with an odds of .0000000000000000000000407829 if they managed to have a zero GPA, failed the GRE with a zero, and wrote random letters for their statement of purpose, et cetera...
 
@@ -345,7 +347,7 @@ X_test_fe <- admissions_fe %>%
   select(-y_admit)
 ```
 
-Right! So I added up the test scores then standardized the new variable. TOEFL and GRE were correlated, but I'm assuming simply combining them is a good way to use both variables. I kneaded statement of purpose and letter of recommendation in the same way. My assumption, which I'll test below, is that I can erode whatever negative effects correlation may have while squeezing out some extra performance. I also assume that logistic regression may be affected more by the feature engineering.
+Right! So I added up the test scores then standardized the new variable. TOEFL and GRE were correlated, but I'm assuming simply combining them is a good way to use both variables. I kneaded statement of purpose and letter of recommendation in the same way. My assumption, which I'll test below, is that I can erode whatever negative effects correlation may have while squeezing out some extra performance. I assume that logistic regression may be affected more by the feature engineering due to random forest's robustness, so let's see if I'm right!
 
 ### Model comparison
 ```{r roc_auc, warning=FALSE, message=FALSE}
@@ -430,7 +432,14 @@ The Purrr code creates a list of strings that concatenate the names of the model
 
 ROC plots the trade off between two metrics---typically sensitivity versus specificity. Better models would output probabilities that sort the classes better. For example, a perfect model would assign very high or near one probabilities for the positive class. We wouldn't have a trade off between the two classes based on our threshold if we had a perfect model! Of course, perfect models don't really exist, so ROC curves also help us determine an appropriate cut off point.
 
-The Area Under the Curve or AUC is basically an integration. Or, actually, I'm pretty sure AUC is, in fact, just integration. Anywho, AUC shows how much area is under the ROC curve(s), as the name states explicitly. Perfect models would have AUCs very close to one. AUCs and ROCs are extremely useful for comparing two classifiers. Each of the models defined above perform similarly; they are basically separated by less than 0.01 in terms of AUC. The ROC curves show similar performance as well, but the models notable have gains in different areas.
+The Area Under the Curve or AUC is basically integration. Or, actually, I'm pretty sure AUC is, in fact, just integration. Anywho, AUC shows how much area is under the ROC curve(s), as the name states explicitly. Perfect models would have AUCs very close to one. AUCs and ROCs are extremely useful for comparing two classifiers. Each of the models defined above perform similarly; they are basically separated by less than 0.01 in terms of AUC. The ROC curves show similar performance as well, but the models notably have gains in different areas. In other words, the models' ROC curves vary at different thresholds so that no one model is wholly superior.
+
+Regardless, comparing models to pick that which has even the slightest performance advantage is always fun. My feature engineered models perform slightly better than the other models.
+
+I win.
+
+## Conclusion
+I started with the _admissions2_ data because I didn't think I'd spend hours working on something so elementary. I desired a fast project to actually work on data rather than my normal modus operandi of dithering. Data science is comparable to a video game, like Warcraft III or Kingdom Hearts. Players act within a domain where they must understand the logic of the system and how to manipulate it to achieve their goals. Video games are mentally taxing but thrilling. Data science is similar because you use the tools (that is, coding, math, and algorithms) to unravel a puzzle. At each turn I thought to myself, "what could I do to improve my position?"---much like I would while playing, say, an RPG. As I read more on data science I realize that other people essentially view data engineering, science, and analysis much like a game as well. Isn't Kaggle essentially gamified data science? The highest echeleon of data scientists seem to be those who can enter a flow-state by understanding the world-system of the data they're using; in that case, the data and the math _clicks_ rather than being a sequence of steps a person follows.
 
 ```{r stop_cluster}
 stopCluster(cluster_mp)

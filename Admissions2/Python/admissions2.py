@@ -4,6 +4,7 @@ Data from: https://www.kaggle.com/mohansacharya/graduate-admissions
 """
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
@@ -57,7 +58,7 @@ def clean_admissions(path: str) -> pd.DataFrame:
                                     "uni_ratings": "category"})
 
     admissions["y_admit"] = admissions.prob_admit > THRESHOLD
-    admissions.drop(columns=["id", "prob_admit", inplace=True)
+    admissions.drop(columns=["id", "prob_admit"], inplace=True)
 
     return admissions
 
@@ -89,7 +90,8 @@ def standardize(variable: pd.Series) -> pd.Series:
 
 
 def eda_tests_plots(admissions: pd.DataFrame, size=18):
-    fig, axes = plt.subplots(nrows = 2, ncols = 2, figsize = FIGSIZE)
+    """Generates some not so fancy EDA plots."""
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=FIGSIZE)
 
     fig.suptitle("GRE, TOEFL, and GPA", fontsize=size, weight="bold")
 
@@ -125,12 +127,17 @@ def eda_tests_plots(admissions: pd.DataFrame, size=18):
 
 
 def admissions_fe(admissions: pd.DataFrame):
+    """Creates tests and extra_docs variables via feature engineering."""
     admissions["tests"] = admissions.gre + admissions.toefl
     admissions["extra_docs"] = admissions.statement + admissions.letter
 
     admissions.tests = standardize(admissions.tests)
     admissions.extra_docs = standardize(admissions.extra_docs)
     admissions.cgpa = standardize(admissions.cgpa)
+    admissions.drop(columns=["gre", "toefl", "statement", "letter"],
+                    inplace=True)
+
+    return pd.get_dummies(admissions, drop_first=True)
 
 def admissions_split(admissions: pd.DataFrame):
     X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
@@ -142,7 +149,7 @@ def admissions_split(admissions: pd.DataFrame):
 def admissions_rf_model(X_train, y_train):
     rf_grid = {"criterion": ["gini", "entropy"],
                "max_depth": [2, 3, 4, None],
-               "max_features": list(range(1, len(admissions.columns) - 1)),
+               "max_features": list(range(1, len(X_train.columns))),
                "max_samples": np.arange(.4, step = .1)
                }
 
@@ -164,6 +171,7 @@ def main():
     path = args.path
 
     admissions = clean_admissions(path)
+    eda_tests_plots(admissions)
     X_train, y_train, X_test, y_test = admissions_split(admissions)
 
 

@@ -2,6 +2,7 @@
 *.html
 *.png
 *.bmp
+*.jpg
 *.utf8.md
 *.knit.md
 __pycache__/
