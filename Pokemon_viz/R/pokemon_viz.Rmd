@@ -1,0 +1,30 @@
+---
+title: "Pokemon visualizations!"
+author: "Joshua Megnauth"
+date: "August 11, 2020"
+output:
+  html_document:
+    theme: darkly
+    highlight: zenburn
+    df_print: paged
+---
+I found this awesome data set [on Kaggle](https://www.kaggle.com/rounakbanik/pokemon)!
+
+## Pokemon!
+
+```{r libraries_n_loading, warning=FALSE, message=FALSE}
+library(kableExtra)
+library(broom)
+library(tidyverse)
+library(ggplot2)
+
+pokemon <- read_csv("Pokemon_data.csv")
+
+# MEGA ULTRA CLEANING WOW.
+
+pokemon %>%
+  mutate(pokedex_number = as.integer(pokedex_number),
+         generation = as_factor(generation),
+         type1 = as_factor(type1),
+         type2 = as_factor(type2))
+```

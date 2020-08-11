@@ -11,7 +11,7 @@ import argparse
 from sklearn.model_selection import train_test_split, GridSearchCV
 # from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, roc_auc_score
+from sklearn.metrics import confusion_matrix, roc_auc_score, make_scorer
 
 # Dracula colors
 # https://draculatheme.com/
@@ -58,7 +58,6 @@ def clean_admissions(path: str) -> pd.DataFrame:
                                     "uni_ratings": "category"})
 
     admissions["y_admit"] = admissions.prob_admit > THRESHOLD
-    admissions.drop(columns=["id", "prob_admit"], inplace=True)
 
     return admissions
 
@@ -134,29 +133,35 @@ def admissions_fe(admissions: pd.DataFrame):
     admissions.tests = standardize(admissions.tests)
     admissions.extra_docs = standardize(admissions.extra_docs)
     admissions.cgpa = standardize(admissions.cgpa)
-    admissions.drop(columns=["gre", "toefl", "statement", "letter"],
-                    inplace=True)
+    admissions.drop(columns=["id", "gre", "toefl", "statement", "letter",
+                             "prob_admit"], inplace=True)
 
     return pd.get_dummies(admissions, drop_first=True)
 
+
 def admissions_split(admissions: pd.DataFrame):
-    X = admissions[["gre", "uni_ratings", "cgpa", "statement", "letter",
-                    "research"]]
+    """Split the admissions DataFrame via train_test_split."""
+    X = admissions.drop(columns=["y_admit"])
     y = admissions.y_admit.values
 
     return train_test_split(X, y, test_size=0.1, random_state=SEED)
 
+
 def admissions_rf_model(X_train, y_train):
-    rf_grid = {"criterion": ["gini", "entropy"],
-               "max_depth": [2, 3, 4, None],
+    rf_grid = {"n_estimators": [32, 128, 256],
+               "criterion": ["gini", "entropy"],
+               "max_depth": np.concatenate((np.arange(20, 60, step=20),
+                                           np.arange(1, 11, step=1)),
+                                           axis=None),
                "max_features": list(range(1, len(X_train.columns))),
-               "max_samples": np.arange(.4, step = .1)
+               "min_samples_split": np.linspace(0.05, 1.0, 10)
                }
 
-    gridcv = GridSearchCV(RandomForestClassifier(n_estimators=1000,
-                                                 n_jobs=-1),
+    gridcv = GridSearchCV(RandomForestClassifier(random_state=SEED),
                           param_grid=rf_grid,
-                          scoring=roc_auc_score)
+                          scoring=make_scorer(roc_auc_score),
+                          n_jobs=-1,
+                          cv=3)
 
     gridcv.fit(X_train, y_train)
     return gridcv
@@ -165,14 +170,23 @@ def admissions_rf_model(X_train, y_train):
 def main():
     set_options()
 
+    # Get the path to admissions2 from our command line arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="Path to the Admissions2 data set.")
     args = parser.parse_args()
     path = args.path
 
+    # Plots
     admissions = clean_admissions(path)
     eda_tests_plots(admissions)
-    X_train, y_train, X_test, y_test = admissions_split(admissions)
+
+    # Final model as per the Rmd
+    admissions = admissions_fe(admissions)
+    admissions.head()
+    X_train, X_test, y_train, y_test = admissions_split(admissions)
+    mod = admissions_rf_model(X_train, y_train)
+
+    return mod
 
 
 if __name__ == "__main__":
