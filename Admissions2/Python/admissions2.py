@@ -11,7 +11,7 @@ import argparse
 from sklearn.model_selection import train_test_split, GridSearchCV
 # from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, roc_auc_score, make_scorer
+from sklearn.metrics import roc_auc_score, make_scorer, roc_curve
 
 # Dracula colors
 # https://draculatheme.com/
@@ -23,12 +23,18 @@ PURPLE = "#bd93f9"
 RED = "#ff5555"
 BACKGROUND = "#282a36"
 
+# Various globals
 HIST_KWARGS = {"edgecolor": BACKGROUND, "linewidth": 2}
 FIGSIZE = (18, 16)
 THRESHOLD = 0.65
 SEED = 314
 
+
 def set_options():
+    """Set global options.
+
+    (I clearly barely used this.)
+    """
     sns.set_context("poster")
 
 
@@ -148,6 +154,7 @@ def admissions_split(admissions: pd.DataFrame):
 
 
 def admissions_rf_model(X_train, y_train):
+    """Fit and run (something of) a Python port of the model I built in R."""
     rf_grid = {"n_estimators": [32, 128, 256],
                "criterion": ["gini", "entropy"],
                "max_depth": np.concatenate((np.arange(20, 60, step=20),
@@ -163,11 +170,32 @@ def admissions_rf_model(X_train, y_train):
                           n_jobs=-1,
                           cv=3)
 
-    gridcv.fit(X_train, y_train)
-    return gridcv
+    return gridcv.fit(X_train, y_train)
+
+
+def plot_roc(model, X_test, y_test):
+    """Plot the ROC curve with the AUC."""
+    y_pred = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+    auc_score = roc_auc_score(y_test, y_pred)
+
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    ax.plot(fpr, tpr, label="AUC: {}".format(auc_score))
+    ax.legend(loc=4)
+    ax.set_xlabel("False Positive Rate (FPR)")
+    ax.set_ylabel("True Positive Rate (TPR)")
+    ax.set_title("ROC curve [feature engineered model]")
+
+    return fig, ax
 
 
 def main():
+    """Runs all of the above in the lamely propietary manner in which I
+    designed my code.
+
+    I can't think of a good way to structure Python data science scripts as
+    opposed to programs written in Python.
+    """
     set_options()
 
     # Get the path to admissions2 from our command line arguments.
@@ -186,7 +214,9 @@ def main():
     X_train, X_test, y_train, y_test = admissions_split(admissions)
     mod = admissions_rf_model(X_train, y_train)
 
-    return mod
+    # Plot the ROC curve with the AUC
+    fig, ax = plot_roc(mod, X_test, y_test)
+    fig.show()
 
 
 if __name__ == "__main__":

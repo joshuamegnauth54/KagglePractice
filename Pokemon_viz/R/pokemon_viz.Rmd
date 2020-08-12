@@ -10,7 +10,7 @@ output:
 ---
 I found this awesome data set [on Kaggle](https://www.kaggle.com/rounakbanik/pokemon)!
 
-## Pokemon!
+## Pokémon!
 
 ```{r libraries_n_loading, warning=FALSE, message=FALSE}
 library(kableExtra)
@@ -22,9 +22,27 @@ pokemon <- read_csv("Pokemon_data.csv")
 
 # MEGA ULTRA CLEANING WOW.
 
-pokemon %>%
+pokemon <-
+  pokemon %>%
   mutate(pokedex_number = as.integer(pokedex_number),
          generation = as_factor(generation),
+         abilities = str_remove_all(abilities, "\\[|'|\\]"),
          type1 = as_factor(type1),
-         type2 = as_factor(type2))
+         type2 = as_factor(na_if(type2, "None")),
+         is_legendary = as_factor(is_legendary),
+         is_mythical = as_factor(is_mythical),
+         is_mega = as_factor(is_mega)) %>%
+  separate(abilities, c("abilities_one", "abilities_two", "abilities_three"),
+           sep = ", ") %>%
+  gather("drop_me", "abilities", matches("abilities_*")) %>%
+  mutate(abilities = as_factor(abilities)) %>%
+  select(-drop_me)
+```
+
+
+Notes to self: Decide if variables like against_*, capture_rate et cetera should be turned into nominals.
+```{r test_graphs}
+pokemon %>%
+  ggplot(aes(base_total)) +
+  geom_histogram()
 ```
