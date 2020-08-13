@@ -30,7 +30,7 @@ pokemon <-
          category = as_factor(category),
          abilities = str_remove_all(abilities, "\\[|'|\\]"),
          type1 = as_factor(type1),
-         type2 = as_factor(na_if(type2, "None")),
+         type2 = as_factor(type2),
          is_legendary = as_factor(is_legendary),
          is_mythical = as_factor(is_mythical),
          is_mega = as_factor(is_mega)) %>%
@@ -45,6 +45,8 @@ head(pokemon)
 ```
 
 I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first project. 
+
+[Talk about NOT setting None as NA here]
 
 Notes to self: Decide if variables like against_*, capture_rate et cetera should be turned into nominals.
 ```{r test_graphs}
