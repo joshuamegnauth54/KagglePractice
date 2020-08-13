@@ -24,8 +24,10 @@ pokemon <- read_csv("Pokemon_data.csv")
 
 pokemon <-
   pokemon %>%
+  rename(category = classfication) %>%
   mutate(pokedex_number = as.integer(pokedex_number),
          generation = as_factor(generation),
+         category = as_factor(category),
          abilities = str_remove_all(abilities, "\\[|'|\\]"),
          type1 = as_factor(type1),
          type2 = as_factor(na_if(type2, "None")),
@@ -36,9 +38,13 @@ pokemon <-
            sep = ", ") %>%
   gather("drop_me", "abilities", matches("abilities_*")) %>%
   mutate(abilities = as_factor(abilities)) %>%
-  select(-drop_me)
+  select(-drop_me) %>%
+  arrange(pokedex_number)
+
+head(pokemon)
 ```
 
+I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first project. 
 
 Notes to self: Decide if variables like against_*, capture_rate et cetera should be turned into nominals.
 ```{r test_graphs}
