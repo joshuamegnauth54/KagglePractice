@@ -7,6 +7,7 @@ import seaborn as sns
 def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon = pd.read_csv(path)
     abilities_temp_name = "abilities_tmp"
+    drop_temp_name = "to_drop"
 
     # Classification was totally not my misspelling
     pokemon.rename(columns={"classfication": "category",
@@ -18,25 +19,35 @@ def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon.abilities_tmp = pokemon.abilities_tmp.str.replace("\\[|'|\\]", "")
 
     # Next, let's split the list into separate columns which I'll merge
-    # back into the Pokémon DataFrame
+    # back into the Pokémon DataFrame. I'll also store a copy of the column
+    # names without the new merged column names to use for melting.
+    poke_orig_cols = pokemon.columns.copy()
     abilities = pokemon.abilities_tmp.str.split(", ", expand=True)
     pokemon = pokemon.merge(abilities, how="outer", left_index=True,
                             right_index=True)
 
-    # Now let's clean up by melting/gathering the abilities as well as
-    # selecting the new column as a Series.
-    # Also! Merge the result back into the DataFrame as the new abilities col.
-    # I'm sure I can figure out how to clean up this process, but I'm fine
-    # with my code for now.
-    abilities_melted = pokemon.melt(value_vars=abilities.columns,
-                                    value_name="abilities").abilities
-    pokemon = pokemon.merge(abilities_melted, how="outer", left_index=True,
-                            right_index=True)
+    # Now let's clean up by melting/gathering the abilities.
+    # Melting produces a new DataFrame with duplicated entries for the
+    # Pokémon with more than one ability.
+    pokemon = pokemon.melt(id_vars=poke_orig_cols,
+                           var_name=drop_temp_name,
+                           value_name="abilities")
 
     # Finally, drop the old columns as well as nulls introduced
     # from the split. Check out the R port of the code for an explanation.
-    cols_to_drop = list(abilities.columns).append(abilities_temp_name)
+    cols_to_drop = [abilities_temp_name, drop_temp_name]
     pokemon.drop(columns=cols_to_drop, inplace=True)
     pokemon.dropna(subset=["abilities"], inplace=True)
+
+    # What's next? Let's fix up variable types!
+    cat_cols = ["category", "generation", "abilities", "type1", "type2",
+                "base_egg_steps", "base_happiness", "is_legendary",
+                "is_mythical", "is_mega"]
+
+    for col in cat_cols:
+        pokemon[col] = pokemon[col].astype("category")
+
+    pokemon.pokedex_number = pokemon.pokedex_number.astype(int)
+    pokemon.name = pokemon.name.astype("string")
 
     return pokemon

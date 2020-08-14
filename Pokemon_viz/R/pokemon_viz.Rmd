@@ -18,37 +18,61 @@ library(broom)
 library(tidyverse)
 library(ggplot2)
 
-pokemon <- read_csv("Pokemon_data.csv")
-
-# MEGA ULTRA CLEANING WOW.
-
-pokemon <-
-  pokemon %>%
+pokemon <- 
+  read_csv("Pokemon_data.csv") %>%
   rename(category = classfication) %>%
+  pivot_longer(c(type1, type2), names_to = NULL, values_to = "type",
+               values_drop_na = TRUE,
+               values_transform = list(type = as_factor)) %>%
   mutate(pokedex_number = as.integer(pokedex_number),
          generation = as_factor(generation),
          category = as_factor(category),
          abilities = str_remove_all(abilities, "\\[|'|\\]"),
-         type1 = as_factor(type1),
-         type2 = as_factor(type2),
+         base_egg_steps = as_factor(base_egg_steps),
+         base_happiness = as_factor(base_happiness),
          is_legendary = as_factor(is_legendary),
          is_mythical = as_factor(is_mythical),
          is_mega = as_factor(is_mega)) %>%
   separate(abilities, c("abilities_one", "abilities_two", "abilities_three"),
            sep = ", ") %>%
-  gather("drop_me", "abilities", matches("abilities_*")) %>%
-  mutate(abilities = as_factor(abilities)) %>%
-  select(-drop_me) %>%
+  pivot_longer(matches("abilities_*"), names_to = NULL, values_to = "abilities",
+               values_drop_na = TRUE,
+               values_transform = list(abilities = as_factor)) %>%
   arrange(pokedex_number)
 
-head(pokemon)
+head(pokemon, 15)
 ```
 
-I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first project. 
+I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first data project where I enjoyed the _process_ of data science while caring little for the data set itself.
 
+What do I find more interesting? **Pokémon and ludology!**
+
+Kaggle users have posted several Pokémon data sets. I opted for up to date data that covers up to the seventh generation, [Sun and Moon](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Sun_and_Moon). The data contain variables for: 
+
+* stats, such as special attack, defense, speed, et cetera
+* a rate of how much damage a Pokémon takes against each type
+* the types themselves, such as water, fire, grass, dark, dragon, psychic, et cetera
+* catch rate---a one byte value that specifies the ease of capturing a Pokémon
+* how many steps an egg yielding the lowest evolution of a Pokémon takes to catch
+* boolean features indicating if a Pokémon is legendary, mythical, or mega
+* a list of the Pokémon's abilities (not attacks but rather passive effects)
+* the generation said Pokémon was introduced
+* the Pokémon's category
+* Pokédex number
+* starting happiness
+* height and weight
+* oh, and the name of the Pokémon of course
+
+I'll attempt to explain some of these variables as necessary, but I *really* don't want to explain the entire R.P.G. or world here. I presume that stats would likely correlate in some way so that some Pokémon have high base Sp. Atk. and Sp. Def. but perhaps low physical attack and defense. I'm currently debating whether to treat some variables, such as catch rate, egg steps, the against_* columns, and starting happiness, as effectively nominal features. These variables behave like somewhat like categoricals despite their numeric status. While the game may treat, say, egg steps as a number, the actual range of values is limited. Take a look.
+
+```{r egg_steps}
+table(pokemon$base_egg_steps) %>%
+  kable(col.names = c("Egg steps", "Frequency")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
 [Talk about NOT setting None as NA here]
+[Talk about replacing gather with pivot_longer]
 
-Notes to self: Decide if variables like against_*, capture_rate et cetera should be turned into nominals.
 ```{r test_graphs}
 pokemon %>%
   ggplot(aes(base_total)) +
