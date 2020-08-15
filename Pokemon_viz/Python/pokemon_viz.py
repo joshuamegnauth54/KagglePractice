@@ -4,6 +4,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Globals
+SEED = 314
+
 def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon = pd.read_csv(path)
     abilities_temp_name = "abilities_tmp"
@@ -13,6 +16,12 @@ def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon.rename(columns={"classfication": "category",
                             "abilities": abilities_temp_name},
                    inplace=True)
+
+    # Melt types1/2 into a tidy column
+    pokemon = pokemon.melt(id_vars=pokemon.columns.difference(["type1",
+                                                               "type2"]),
+                           var_name=drop_temp_name,
+                           value_name="type")
 
     # Clean up array specifiers in each ability list
     # Removes [, ], and '
@@ -37,10 +46,10 @@ def cleaned_pokemon(path) -> pd.DataFrame:
     # from the split. Check out the R port of the code for an explanation.
     cols_to_drop = [abilities_temp_name, drop_temp_name]
     pokemon.drop(columns=cols_to_drop, inplace=True)
-    pokemon.dropna(subset=["abilities"], inplace=True)
+    pokemon.dropna(subset=["abilities", "type"], inplace=True)
 
     # What's next? Let's fix up variable types!
-    cat_cols = ["category", "generation", "abilities", "type1", "type2",
+    cat_cols = ["category", "generation", "abilities", "type",
                 "base_egg_steps", "base_happiness", "is_legendary",
                 "is_mythical", "is_mega"]
 
@@ -50,4 +59,7 @@ def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon.pokedex_number = pokemon.pokedex_number.astype(int)
     pokemon.name = pokemon.name.astype("string")
 
+    # Finally, let's sort and return the DataFrame
+    pokemon.sort_values(by="pokedex_number", inplace=True)
+    pokemon.reset_index(drop=True, inplace=True)
     return pokemon

@@ -20,10 +20,9 @@ library(ggplot2)
 
 pokemon <- 
   read_csv("Pokemon_data.csv") %>%
-  rename(category = classfication) %>%
-  pivot_longer(c(type1, type2), names_to = NULL, values_to = "type",
-               values_drop_na = TRUE,
-               values_transform = list(type = as_factor)) %>%
+  rename(category = classfication,
+         Primary = type1,
+         Secondary = type2) %>%
   mutate(pokedex_number = as.integer(pokedex_number),
          generation = as_factor(generation),
          category = as_factor(category),
@@ -32,14 +31,47 @@ pokemon <-
          base_happiness = as_factor(base_happiness),
          is_legendary = as_factor(is_legendary),
          is_mythical = as_factor(is_mythical),
-         is_mega = as_factor(is_mega)) %>%
+         is_mega = as_factor(is_mega),
+         Secondary = na_if(Secondary, "None")) %>%
+  pivot_longer(c(Primary, Secondary),
+               names_to = "type_order",
+               names_transform = list(type_order = as_factor),
+               values_to = "type",
+               values_drop_na = TRUE,
+               values_transform = list(type = as_factor)) %>%
   separate(abilities, c("abilities_one", "abilities_two", "abilities_three"),
            sep = ", ") %>%
   pivot_longer(matches("abilities_*"), names_to = NULL, values_to = "abilities",
                values_drop_na = TRUE,
                values_transform = list(abilities = as_factor)) %>%
+
   arrange(pokedex_number)
 
+# Next, let's define some globals for the type colors.
+# https://bulbapedia.bulbagarden.net/wiki/Category:Type_color_templates
+# I'm using Bulbapedia's color list since I don't keep a list of hex colors
+# for types in my head.
+type_colors <- c("Water" = "#6890F0",
+                 "Fire" = "#F08030",
+                 "Grass" = "#78C850",
+                 "Electric" = "#F8D030",
+                 "Ice" = "#98D8D8",
+                 "Psychic" = "#F85888",
+                 "Dragon" = "#7038F8",
+                 "Dark" = "#705848",
+                 "Fairy" = "#EE99AC",
+                 "Normal" = "#A8A878",
+                 "Fighting" = "#C03028",
+                 "Flying" = "#A890F0",
+                 "Poison" = "#A040A0",
+                 "Ground" = "#E0C068",
+                 "Rock" = "#B8A038",
+                 "Bug" = "#A8B820",
+                 "Ghost" = "#705898",
+                 "Steel" = "#B8B8D0",
+                 "Unknown" = "#68A090")
+
+set.seed(314)
 head(pokemon, 15)
 ```
 
@@ -57,7 +89,7 @@ Kaggle users have posted several Pokémon data sets. I opted for up to date data
 * boolean features indicating if a Pokémon is legendary, mythical, or mega
 * a list of the Pokémon's abilities (not attacks but rather passive effects)
 * the generation said Pokémon was introduced
-* the Pokémon's category
+* the Pokémon's [category](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_category)
 * Pokédex number
 * starting happiness
 * height and weight
@@ -70,11 +102,20 @@ table(pokemon$base_egg_steps) %>%
   kable(col.names = c("Egg steps", "Frequency")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
-[Talk about NOT setting None as NA here]
-[Talk about replacing gather with pivot_longer]
+Pokémon eggs fall into discrete groups per amount of steps required to hatch. Thus, they're basically categories rather than actual numbers in terms of the data set.
+
+The messiest feature prior to cleaning was the _abilities_ column. Each row of the column was an array stored as a string. For example, Bulbasaur's entry for abilities would look like: "['Overgrow', 'Chlorophyll']". Arrays stored as strings are always annoying. The solution involves splitting the string via RegEx, exploding the column/string as multiple columns, then melting the columns into a single, tidy column. You may read the code [for my initial process here](https://github.com/joshuamegnauth54/KagglePractice/commit/ab345bbadad67f5fb4d63d7b2d67a3b9d53f21b1#diff-52a5faa36d1a54f3aeeac9d175fea326). The preceding link is to an old commit of this project. Anywho, initially I solved the array-as-string problem using [tidyr::gather](https://tidyr.tidyverse.org/reference/gather.html). However, gather() is considered legacy code and was thus deprecated in favor of [tidyr::pivot_longer](https://tidyr.tidyverse.org/reference/pivot_longer.html). The new and shiny pivot_longer() is more tractable and featureful than gather. I cleaned up my pipeline a bit by switching the pivot_longer(). For example, gather() produces two columns from the melted column: keys and values just like in the Pandas library for Python. Keys contains the former column name as specifiers for the individual values. Explaining this with examples is out of the scope of this project, but hopefully you've seen the process before, dear reader. The keys column is sometimes superfluous which means the column has to be dropped later. One of the new features of pivot_longer() is to allow the programmer to drop the column right in the function call. The other new features seem to handle a lot of the cases where I'd have to messily mangle with my keys/values after melting. For example, you can apply a function to each key/value or type cast on the fly.
 
 ```{r test_graphs}
 pokemon %>%
-  ggplot(aes(base_total)) +
-  geom_histogram()
+  ggplot(aes(type, color = type_order)) +
+  geom_bar(position = "dodge") +
+  scale_color_manual(values = type_colors) +
+  scale_fill_manual(values = type_colors)
+
+pokemon %>%
+  ggplot(aes(attack, hp, color = type)) +
+  geom_point() +
+  scale_color_manual(values = type_colors) +
+  scale_fill_manual(values = type_colors)
 ```
