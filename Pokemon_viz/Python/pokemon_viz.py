@@ -82,3 +82,15 @@ def cleaned_pokemon(path) -> pd.DataFrame:
     pokemon.sort_values(by="pokedex_number", inplace=True)
     pokemon.reset_index(drop=True, inplace=True)
     return pokemon
+
+
+def flatten_pokemon(pokemon: pd.DataFrame) -> pd.DataFrame:
+    pokedex = pokemon.pokedex_number.unique()
+    newpoke = pd.get_dummies(pokemon, columns=["type", "abilities"])
+
+    # Can't figure out a smart way to apply/map
+    for pokenum in pokedex:
+        types = pokemon.loc[pokemon.pokedex_number == pokemon, "type"].unique()
+
+        newpoke.loc[newpoke.pokedex_number == pokenum,]
+

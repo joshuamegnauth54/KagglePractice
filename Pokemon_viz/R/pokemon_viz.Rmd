@@ -72,6 +72,17 @@ type_colors <- c("Water" = "#6890F0",
                  "Steel" = "#B8B8D0",
                  "Unknown" = "#68A090")
 
+# Likewise for the stats...
+# https://bulbapedia.bulbagarden.net/wiki/Category:Stat_color_templates
+# (Though I totally made up the base total color)
+stat_colors <- c("attack" = "#F08030",
+                 "defense" = "#F8D030",
+                 "sp_attack" = "#6890F0",
+                 "sp_defense" = "#78C850",
+                 "speed" = "#F85888",
+                 "hp" = "FF0000",
+                 "base_total" = "#D77AFF")
+
 set.seed(314)
 head(pokemon, 15)
 ```
@@ -135,6 +146,12 @@ pokemon %>%
 
 ```{r ecdf_curve}
 pokemon %>%
-  ggplot(aes(base_total)) +
-  stat_ecdf(geom = "density", pad = FALSE, fill = "slateblue")
+  select(base_total, hp, attack, defense, sp_attack, sp_defense, speed) %>%
+  pivot_longer(all_of(colnames(.)),
+               names_to = "Stat") %>%
+  ggplot(aes(value)) +
+  stat_ecdf(geom = "density", pad = FALSE) +
+  ggtitle("ECDFs of Pokémon stats") +
+  xlab("Range") +
+  facet_wrap(vars(Stat))
 ```
