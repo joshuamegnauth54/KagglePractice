@@ -1,7 +1,6 @@
 ---
-title: "Pokemon visualizations!"
+title: "Pokémon data!"
 author: "Joshua Megnauth"
-date: "August 11, 2020"
 output:
   html_document:
     theme: darkly
@@ -9,14 +8,17 @@ output:
     df_print: paged
 ---
 I found this awesome data set [on Kaggle](https://www.kaggle.com/rounakbanik/pokemon)!
+## Introduction
+I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first data project where I enjoyed the _process_ of data science while caring little for the data set itself.
 
-## Pokémon!
+What do I find more interesting? **Pokémon and ludology!**
 
 ```{r libraries_n_loading, warning=FALSE, message=FALSE}
 library(kableExtra)
 library(broom)
 library(tidyverse)
 library(ggplot2)
+#library(ggtheme)
 
 pokemon <- 
   read_csv("Pokemon_data.csv") %>%
@@ -44,7 +46,6 @@ pokemon <-
   pivot_longer(matches("abilities_*"), names_to = NULL, values_to = "abilities",
                values_drop_na = TRUE,
                values_transform = list(abilities = as_factor)) %>%
-
   arrange(pokedex_number)
 
 # Next, let's define some globals for the type colors.
@@ -75,47 +76,65 @@ set.seed(314)
 head(pokemon, 15)
 ```
 
-I worked on a binary classifier for [predicting graduate school admissions](https://joshuamegnauth54.github.io/docs/projects/data/science/admissions2.html) as my first data project where I enjoyed the _process_ of data science while caring little for the data set itself.
-
-What do I find more interesting? **Pokémon and ludology!**
-
 Kaggle users have posted several Pokémon data sets. I opted for up to date data that covers up to the seventh generation, [Sun and Moon](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Sun_and_Moon). The data contain variables for: 
 
 * stats, such as special attack, defense, speed, et cetera
 * a rate of how much damage a Pokémon takes against each type
 * the types themselves, such as water, fire, grass, dark, dragon, psychic, et cetera
-* catch rate---a one byte value that specifies the ease of capturing a Pokémon
+* catch rate---a one byte value that specifies the [ease of capturing](https://bulbapedia.bulbagarden.net/wiki/Catch_rate) a Pokémon
 * how many steps an egg yielding the lowest evolution of a Pokémon takes to catch
 * boolean features indicating if a Pokémon is legendary, mythical, or mega
-* a list of the Pokémon's abilities (not attacks but rather passive effects)
-* the generation said Pokémon was introduced
+* a list of the Pokémon's [abilities](https://www.serebii.net/games/ability.shtml) (not attacks but rather passive effects)
+* the [generation](https://bulbapedia.bulbagarden.net/wiki/Generation) said Pokémon was introduced
 * the Pokémon's [category](https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_category)
 * Pokédex number
 * starting happiness
 * height and weight
 * oh, and the name of the Pokémon of course
 
-I'll attempt to explain some of these variables as necessary, but I *really* don't want to explain the entire R.P.G. or world here. I presume that stats would likely correlate in some way so that some Pokémon have high base Sp. Atk. and Sp. Def. but perhaps low physical attack and defense. I'm currently debating whether to treat some variables, such as catch rate, egg steps, the against_* columns, and starting happiness, as effectively nominal features. These variables behave like somewhat like categoricals despite their numeric status. While the game may treat, say, egg steps as a number, the actual range of values is limited. Take a look.
+I'll attempt to explain some of these variables as necessary, but I *really* don't want to explain the entire R.P.G. or world here. I assume some domain knowledge about the series even if _Pokémon Go_ is your only frame of reference.
+
+Based on my domain knowledge as well as intuition I guess that stats would likely be correlated. Pokémon that have high base Sp. Atk. and Sp. Def. may perhaps sport low physical attack and defense. I'm currently debating whether to treat some variables, such as catch rate, egg steps, the against_* columns, and starting happiness, as effectively nominal features. These variables behave like somewhat like categoricals despite their numeric status. While the game may treat, say, egg steps as a number, the actual range of values is limited. Take a look.
 
 ```{r egg_steps}
 table(pokemon$base_egg_steps) %>%
-  kable(col.names = c("Egg steps", "Frequency")) %>%
+  prop.table() %>%
+  kable(col.names = c("Egg steps", "Proportion")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
 ```
 Pokémon eggs fall into discrete groups per amount of steps required to hatch. Thus, they're basically categories rather than actual numbers in terms of the data set.
 
 The messiest feature prior to cleaning was the _abilities_ column. Each row of the column was an array stored as a string. For example, Bulbasaur's entry for abilities would look like: "['Overgrow', 'Chlorophyll']". Arrays stored as strings are always annoying. The solution involves splitting the string via RegEx, exploding the column/string as multiple columns, then melting the columns into a single, tidy column. You may read the code [for my initial process here](https://github.com/joshuamegnauth54/KagglePractice/commit/ab345bbadad67f5fb4d63d7b2d67a3b9d53f21b1#diff-52a5faa36d1a54f3aeeac9d175fea326). The preceding link is to an old commit of this project. Anywho, initially I solved the array-as-string problem using [tidyr::gather](https://tidyr.tidyverse.org/reference/gather.html). However, gather() is considered legacy code and was thus deprecated in favor of [tidyr::pivot_longer](https://tidyr.tidyverse.org/reference/pivot_longer.html). The new and shiny pivot_longer() is more tractable and featureful than gather. I cleaned up my pipeline a bit by switching the pivot_longer(). For example, gather() produces two columns from the melted column: keys and values just like in the Pandas library for Python. Keys contains the former column name as specifiers for the individual values. Explaining this with examples is out of the scope of this project, but hopefully you've seen the process before, dear reader. The keys column is sometimes superfluous which means the column has to be dropped later. One of the new features of pivot_longer() is to allow the programmer to drop the column right in the function call. The other new features seem to handle a lot of the cases where I'd have to messily mangle with my keys/values after melting. For example, you can apply a function to each key/value or type cast on the fly.
 
-```{r test_graphs}
-pokemon %>%
-  ggplot(aes(type, color = type_order)) +
-  geom_bar(position = "dodge") +
-  scale_color_manual(values = type_colors) +
-  scale_fill_manual(values = type_colors)
+## Visualizations
+Pokémon may currently have up to two types which are classified by primacy. Whether a type is first or second doesn't really matter as far as I know. I usually consider primary types as the most canonically obvious type. Consider [Swampert](https://bulbapedia.bulbagarden.net/wiki/Swampert_(Pok%C3%A9mon)), the final evolution of Mudkip. Mudkip is the water starter for the games [Alpha] Sapphire and [Omega] Ruby. Swampert, however, is dual typed at water/ground. Blazeiken, the evolved form of the fire starter Torchic, has the fire and fighting types. Regardless, any fan would cock their heads at a person referring to Swampert as "ground/water." We naturally consider some types to be primary, such as if the Pokémon's first type while unevolved is, say, water like in Mudkip's case. First types also seem natural in many cases.
 
+Anyway, primary types actually matter very little, as I stated above. Basically, the main difference is that a Pokémon has an extra type with the benefits (extra damage and resistance against certain types) and problems (weaknesses against other types) that implies.
+```{r type_order_bar}
 pokemon %>%
-  ggplot(aes(attack, hp, color = type)) +
-  geom_point() +
-  scale_color_manual(values = type_colors) +
-  scale_fill_manual(values = type_colors)
+  ggplot(aes(type_order, color = type, fill = type)) +
+  geom_bar(position = "dodge", color = "black") +
+  scale_fill_manual(values = type_colors, name = "Type") +
+  scale_y_continuous(breaks = seq(0, 350, by = 25)) +
+  ggtitle("Frequency of primary/secondary Pokémon types",
+          "(not that the primacy of a type matters or anything...)") +
+  xlab("Primary or secondary type") +
+  ylab("Frequency") +
+  theme_classic()
+```
+
+
+```{r}
+pokemon %>%
+  ggplot
+```
+
+```{r generation_plot}
+
+```
+
+```{r ecdf_curve}
+pokemon %>%
+  ggplot(aes(base_total)) +
+  stat_ecdf(geom = "density", pad = FALSE, fill = "slateblue")
 ```
